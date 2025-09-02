@@ -101,6 +101,7 @@ function maybeSpawnStations(dt: number) {
   const interval = clamp(3 - state.time*0.02, 1, 3) // faster over time
   if (spawnTimer >= interval) {
     spawnTimer = 0
+
     for (let tries=0; tries<20; tries++) {
       const pos = { x: 80 + Math.random()*440, y: 80 + Math.random()*640 }
       const shapes: Station['shape'][] = ['circle','triangle','square']
@@ -113,6 +114,17 @@ function maybeSpawnStations(dt: number) {
     }
   }
 }
+
+function nearestStationWithin(p: Vec2, radius: number): Station | null {
+  let best: Station | null = null
+  let bestD = radius*radius
+  for (const s of state.stations) {
+    const d = dist2(s.pos, p)
+    if (d <= bestD) { bestD = d; best = s }
+  }
+  return best
+}
+
 
 function drawStation(ctx: CanvasRenderingContext2D, s: Station) {
   ctx.save()
@@ -205,6 +217,8 @@ function render(ctx: CanvasRenderingContext2D, camera: Camera, canvas: HTMLCanva
   ctx.restore()
 }
 
+
+
 function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
   let isPanning = false
   let pinchDist0 = 0
@@ -217,9 +231,10 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
       const world = camera.toWorld({ x: e.clientX, y: e.clientY })
       const s = hitTestStation(world)
       if (interaction.drawingFrom) {
-        // Second tap: try to connect
-        if (s && s.id !== interaction.drawingFrom.id) {
-          addLine('#3498db', interaction.drawingFrom, s)
+        // Second tap: try to connect (snap to nearest within 20px)
+        const target = s ?? nearestStationWithin(world, 20)
+        if (target && target.id !== interaction.drawingFrom.id) {
+          addLine('#3498db', interaction.drawingFrom, target)
         }
         interaction.drawingFrom = null
         interaction.previewTo = null
@@ -231,8 +246,11 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
           interaction.previewTo = { ...s.pos }
           isPanning = false
           return
-        } else {
+          return
+        } else if (!s) {
           // Start panning if not tapping a station
+          // If previously in drawing mode, a blank tap cancels
+          if (interaction.drawingFrom) { interaction.drawingFrom = null; interaction.previewTo = null }
           isPanning = true
         }
       }
@@ -243,8 +261,10 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
     if (pointers.size === 1) {
       if (interaction.drawingFrom) {
-        // update preview
-        interaction.previewTo = camera.toWorld({ x: e.clientX, y: e.clientY })
+        // update preview (snap preview to nearest station within 20px)
+        const world = camera.toWorld({ x: e.clientX, y: e.clientY })
+        const snapped = nearestStationWithin(world, 20)
+        interaction.previewTo = snapped ? { ...snapped.pos } : world
       } else if (isPanning && prev) {
         const dx = e.clientX - prev.x
         const dy = e.clientY - prev.y
