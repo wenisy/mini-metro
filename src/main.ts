@@ -39,6 +39,8 @@ const state = {
   stations: [] as Station[],
   lines: [] as Line[],
   trains: [] as Train[],
+  autoSpawnEnabled: false,
+  spawnOnConnect: false,
 }
 
 // interaction state for line drawing
@@ -97,6 +99,7 @@ function hitTestStation(p: Vec2): Station | null {
   return best
 }
 function maybeSpawnStations(dt: number) {
+  if (!state.autoSpawnEnabled) return
   spawnTimer += dt
   const interval = clamp(3 - state.time*0.02, 1, 3) // faster over time
   if (spawnTimer >= interval) {
@@ -225,6 +228,7 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
   let pointers: Map<number, Vec2> = new Map()
 
   function onPointerDown(e: PointerEvent) {
+    e.preventDefault()
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
     canvas.setPointerCapture(e.pointerId)
     if (pointers.size === 1) {
@@ -235,6 +239,14 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
         const target = s ?? nearestStationWithin(world, 20)
         if (target && target.id !== interaction.drawingFrom.id) {
           addLine('#3498db', interaction.drawingFrom, target)
+          if (state.spawnOnConnect) {
+            // spawn a new station near mid point
+            const a = interaction.drawingFrom.pos
+            const b = target.pos
+            const mid = { x: (a.x+b.x)/2 + (Math.random()-0.5)*40, y: (a.y+b.y)/2 + (Math.random()-0.5)*40 }
+            const shapes: Station['shape'][] = ['circle','triangle','square']
+            addStation(mid, shapes[Math.floor(Math.random()*3)])
+          }
         }
         interaction.drawingFrom = null
         interaction.previewTo = null
@@ -245,7 +257,6 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
           interaction.drawingFrom = s
           interaction.previewTo = { ...s.pos }
           isPanning = false
-          return
           return
         } else if (!s) {
           // Start panning if not tapping a station
@@ -265,6 +276,8 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
         const world = camera.toWorld({ x: e.clientX, y: e.clientY })
         const snapped = nearestStationWithin(world, 20)
         interaction.previewTo = snapped ? { ...snapped.pos } : world
+        // Prevent panning while drawing
+        return
       } else if (isPanning && prev) {
         const dx = e.clientX - prev.x
         const dy = e.clientY - prev.y
@@ -318,6 +331,7 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
   }, { passive: false })
 }
 
+
 function main() {
   const canvas = document.getElementById('game') as HTMLCanvasElement
   const hud = document.getElementById('hud') as HTMLDivElement
@@ -336,6 +350,26 @@ function main() {
     render(ctx, camera, canvas)
     hud.textContent = `t=${state.time.toFixed(1)} s | stations=${state.stations.length} | trains=${state.trains.length}`
     requestAnimationFrame(frame)
+  // UI buttons
+  const btnAuto = document.getElementById('toggle-auto') as HTMLButtonElement
+  const btnSpawn = document.getElementById('spawn-one') as HTMLButtonElement
+  const btnOnConnect = document.getElementById('spawn-on-connect') as HTMLButtonElement
+  if (btnAuto && btnSpawn && btnOnConnect) {
+    const updateLabels = ()=>{
+      btnAuto.textContent = `Auto Spawn: ${state.autoSpawnEnabled? 'On':'Off'}`
+      btnOnConnect.textContent = `Spawn on Connect: ${state.spawnOnConnect? 'On':'Off'}`
+    }
+    btnAuto.onclick = ()=> { state.autoSpawnEnabled = !state.autoSpawnEnabled; updateLabels() }
+    btnOnConnect.onclick = ()=> { state.spawnOnConnect = !state.spawnOnConnect; updateLabels() }
+    btnSpawn.onclick = ()=> {
+      const pos = { x: camera.pos.x + (Math.random()*0.6+0.2)* ( canvas.width / camera.scale ),
+                    y: camera.pos.y + (Math.random()*0.6+0.2)* ( canvas.height / camera.scale ) }
+      const shapes: Station['shape'][] = ['circle','triangle','square']
+      addStation(pos, shapes[Math.floor(Math.random()*3)])
+    }
+    updateLabels()
+  }
+
   }
   requestAnimationFrame(frame)
 }
