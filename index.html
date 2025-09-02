@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Mini Metro (Web) — Infinite Mode</title>
+    <style>
+      html, body { height: 100%; margin: 0; background: #111; color: #eee; touch-action: none; }
+      #app { height: 100%; }
+      canvas { display: block; width: 100%; height: 100%; }
+      .overlay { position: fixed; left: 0; top: 0; padding: 8px 10px; font: 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto; opacity: 0.75; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game"></canvas>
+      <div class="overlay" id="hud">Loading…</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
