@@ -29,6 +29,11 @@ class Camera {
   toWorld(p: Vec2): Vec2 { return { x: p.x / this.scale + this.pos.x, y: p.y / this.scale + this.pos.y } }
 }
 
+function pointerPos(e: { clientX: number; clientY: number }, canvas: HTMLCanvasElement): Vec2 {
+  const r = canvas.getBoundingClientRect()
+  return { x: e.clientX - r.left, y: e.clientY - r.top }
+}
+
 // Game state stubs
 interface Station { id: number; pos: Vec2; shape: 'circle'|'triangle'|'square'; queue: number }
 interface Line { id: number; color: string; stations: number[] }
@@ -232,7 +237,8 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
     canvas.setPointerCapture(e.pointerId)
     if (pointers.size === 1) {
-      const world = camera.toWorld({ x: e.clientX, y: e.clientY })
+      const screen = pointerPos(e, canvas)
+      const world = camera.toWorld(screen)
       const s = hitTestStation(world)
       if (interaction.drawingFrom) {
         // Second tap: try to connect (snap to nearest within 20px)
@@ -273,7 +279,8 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
     if (pointers.size === 1) {
       if (interaction.drawingFrom) {
         // update preview (snap preview to nearest station within 20px)
-        const world = camera.toWorld({ x: e.clientX, y: e.clientY })
+        const screen = pointerPos(e, canvas)
+        const world = camera.toWorld(screen)
         const snapped = nearestStationWithin(world, 20)
         interaction.previewTo = snapped ? { ...snapped.pos } : world
         // Prevent panning while drawing
@@ -301,7 +308,8 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
   function onPointerUp(e: PointerEvent) {
     // finish drawing if released on a station
     if (interaction.drawingFrom) {
-      const world = camera.toWorld({ x: e.clientX, y: e.clientY })
+      const screen = pointerPos(e, canvas)
+      const world = camera.toWorld(screen)
       const target = hitTestStation(world)
       if (target && target.id !== interaction.drawingFrom.id) {
         addLine('#3498db', interaction.drawingFrom, target)
