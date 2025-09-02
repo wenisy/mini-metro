@@ -51,6 +51,9 @@ const state = {
   gameOver: false,
   currentLineId: null as number | null,
   nextLineNum: 1,
+  showLinkChooser: false,
+  linkChooserFrom: null as Station | null,
+  linkChooserTo: null as Station | null,
 }
 
 const COLORS = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22']
@@ -65,6 +68,7 @@ function total(rec: Record<Shape, number>) { return rec.circle + rec.triangle + 
 const interaction = {
   drawingFrom: null as Station | null,
   previewTo: null as Vec2 | null,
+  selectedLine: null as Line | null,
 }
 
 let nextId = 1
@@ -79,6 +83,10 @@ function addLine(color: string, a: Station, b: Station, name?: string): Line {
   state.lines.push(l)
   // add one train for line by default
   state.trains.push({ id: nextId++, lineId: l.id, atIndex: 0, t: 0, dir: 1, capacity: 6, passengersBy: zeroByShape(), passengersTo: {}, dwell: 0 })
+
+  // Don't update UI immediately - let caller handle it
+  // renderLinesPanel()
+
   return l
 }
 
@@ -98,6 +106,14 @@ function removeLine(lineId: number) {
   if (idx>=0) state.lines.splice(idx,1)
   // remove trains on that line
   state.trains = state.trains.filter(t=>t.lineId!==lineId)
+
+  // If all lines are removed, reset line numbering
+  if (state.lines.length === 0) {
+    state.nextLineNum = 1
+  }
+
+  // Update UI immediately
+  renderLinesPanel()
 }
 
 function toggleLine(color: string, a: Station, b: Station): 'added'|'removed'|'noop' {
@@ -107,26 +123,92 @@ function toggleLine(color: string, a: Station, b: Station): 'added'|'removed'|'n
 }
 
 function maybeEnsureBaselineLine() {
-  if (state.lines.length === 0 && state.stations.length >= 2) {
-    // connect the nearest pair
-    let bestI = 0, bestJ = 1, bestD = Infinity
-    for (let i=0;i<state.stations.length;i++)
-      for (let j=i+1;j<state.stations.length;j++) {
-        const d = dist2(state.stations[i].pos, state.stations[j].pos)
-        if (d < bestD) { bestD = d; bestI = i; bestJ = j }
-      }
-    const a = state.stations[bestI]
-    const b = state.stations[bestJ]
-    addLine('#e74c3c', a, b)
-  }
+  // No longer needed since we create initial line in spawnInitialWorld
 }
 
 
 function spawnInitialWorld() {
   // seed stations
-  addStation({ x: 120, y: 120 }, 'circle')
-  addStation({ x: 320, y: 140 }, 'triangle')
+  const s1 = addStation({ x: 120, y: 120 }, 'circle')
+  const s2 = addStation({ x: 320, y: 140 }, 'triangle')
   addStation({ x: 220, y: 280 }, 'square')
+  // create initial line (1号线)
+  const firstLine = addLine(COLORS[0], s1, s2, '1号线')
+  state.currentLineId = firstLine.id
+}
+function showLinkChooser(from: Station, to: Station) {
+  state.showLinkChooser = true
+  state.linkChooserFrom = from
+  state.linkChooserTo = to
+
+  const chooser = document.getElementById('link-chooser') as HTMLDivElement
+  const text = document.getElementById('link-chooser-text') as HTMLDivElement
+  const buttons = document.getElementById('link-chooser-buttons') as HTMLDivElement
+
+  if (!chooser || !text || !buttons) return
+
+  const existing = findLineBetween(from.id, to.id)
+
+  if (existing) {
+    text.textContent = `${from.shape} ↔ ${to.shape} 已连接`
+    buttons.innerHTML = `<button id="remove-line">删除连接</button>`
+  } else {
+    text.textContent = `连接 ${from.shape} → ${to.shape}`
+    let html = ''
+
+    if (state.currentLineId && state.lines.find(l => l.id === state.currentLineId)) {
+      const currentLine = state.lines.find(l => l.id === state.currentLineId)!
+      html += `<button id="extend-current">延长 ${currentLine.name}</button>`
+    }
+
+    html += `<button id="new-line">新建线路</button>`
+    buttons.innerHTML = html
+  }
+
+  chooser.style.display = 'block'
+
+  // Add event listeners
+  const removeBtn = document.getElementById('remove-line')
+  const extendBtn = document.getElementById('extend-current')
+  const newBtn = document.getElementById('new-line')
+
+  if (removeBtn) {
+    removeBtn.onclick = () => {
+      if (existing) removeLine(existing.id)
+      hideLinkChooser()
+    }
+  }
+
+  if (extendBtn) {
+    extendBtn.onclick = () => {
+      if (state.currentLineId) {
+        const currentLine = state.lines.find(l => l.id === state.currentLineId)!
+        // Extend current line by adding the new station
+        if (!currentLine.stations.includes(to.id)) {
+          currentLine.stations.push(to.id)
+          renderLinesPanel()
+        }
+      }
+      hideLinkChooser()
+    }
+  }
+
+  if (newBtn) {
+    newBtn.onclick = () => {
+      const color = COLORS[(state.nextLineNum-1) % COLORS.length]
+      const newLine = addLine(color, from, to)
+      state.currentLineId = newLine.id
+      hideLinkChooser()
+    }
+  }
+}
+
+function hideLinkChooser() {
+  state.showLinkChooser = false
+  state.linkChooserFrom = null
+  state.linkChooserTo = null
+  const chooser = document.getElementById('link-chooser') as HTMLDivElement
+  if (chooser) chooser.style.display = 'none'
 }
 
 // simple RNG station spawner with min distance avoidance
@@ -170,6 +252,73 @@ function nearestStationWithin(p: Vec2, radius: number): Station | null {
   }
   return best
 }
+
+
+
+// Global function to render lines panel - can be called from anywhere
+function renderLinesPanel() {
+  console.log('renderLinesPanel 被调用，当前线路数量:', state.lines.length)
+  const linesList = document.getElementById('lines-list') as HTMLDivElement
+  if (!linesList) {
+    console.log('linesList 元素未找到')
+    return
+  }
+  const html = state.lines.map(l=>`<div style="display:flex;align-items:center;gap:6px;margin:2px 0">
+    <span style="display:inline-block;width:10px;height:10px;background:${l.color};border-radius:2px"></span>
+    <button data-line="${l.id}" class="line-select" style="font-size:12px">${l.name}</button>
+    <small style="opacity:.7">${l.color}</small>
+  </div>`).join('')
+  console.log('生成的HTML:', html)
+  linesList.innerHTML = html
+  linesList.querySelectorAll('button.line-select').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = Number((btn as HTMLButtonElement).dataset.line)
+      state.currentLineId = id
+      console.log('选中线路:', id)
+    })
+  })
+  console.log('renderLinesPanel 完成')
+}
+
+// function optimizeTrainPath(line: Line) {
+//   // Find the two farthest stations for optimal train routing
+//   const stations = line.stations.map(id => state.stations.find(s => s.id === id)!)
+//   if (stations.length < 2) return
+//
+//   let maxDist = 0
+//   let bestStart = 0
+//   let bestEnd = 1
+//
+//   for (let i = 0; i < stations.length; i++) {
+//     for (let j = i + 1; j < stations.length; j++) {
+//       const dist = dist2(stations[i].pos, stations[j].pos)
+//       if (dist > maxDist) {
+//         maxDist = dist
+//         bestStart = i
+//         bestEnd = j
+//       }
+//     }
+//   }
+//
+//   // Reorder stations to start from farthest pair
+//   const reordered = [...line.stations]
+//   const temp = reordered[0]
+//   reordered[0] = reordered[bestStart]
+//   reordered[bestStart] = temp
+//
+//   // Find optimal end position
+//   const endIndex = reordered.indexOf(line.stations[bestEnd])
+//   if (endIndex !== reordered.length - 1) {
+//     const temp = reordered[reordered.length - 1]
+//     reordered[reordered.length - 1] = reordered[endIndex]
+//     reordered[endIndex] = temp
+//   }
+//
+//   line.stations = reordered
+//
+//   // Update UI after path optimization
+//   renderLinesPanel()
+// }
 
 
 function drawStation(ctx: CanvasRenderingContext2D, s: Station) {
@@ -327,17 +476,10 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
       const world = camera.toWorld(screen)
       const s = hitTestStation(world)
       if (interaction.drawingFrom) {
-        // Second tap: try to connect (snap to nearest within 20px)
+        // Second tap: show link chooser
         const target = s ?? nearestStationWithin(world, 20)
         if (target && target.id !== interaction.drawingFrom.id) {
-          const res = toggleLine('#3498db', interaction.drawingFrom, target)
-          if (res==='added' && state.spawnOnConnect) {
-            const a = interaction.drawingFrom.pos
-            const b = target.pos
-            const mid = { x: (a.x+b.x)/2 + (Math.random()-0.5)*40, y: (a.y+b.y)/2 + (Math.random()-0.5)*40 }
-            const shapes: Station['shape'][] = ['circle','triangle','square']
-            addStation(mid, shapes[Math.floor(Math.random()*3)])
-          }
+          showLinkChooser(interaction.drawingFrom, target)
         }
         interaction.drawingFrom = null
         interaction.previewTo = null
@@ -352,7 +494,12 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
         } else if (!s) {
           // Start panning if not tapping a station
           // If previously in drawing mode, a blank tap cancels
-          if (interaction.drawingFrom) { interaction.drawingFrom = null; interaction.previewTo = null }
+          if (interaction.drawingFrom) {
+            interaction.drawingFrom = null
+            interaction.previewTo = null
+            interaction.selectedLine = null // Reset selected line on cancel
+            hideLinkChooser()
+          }
           isPanning = true
         }
       }
@@ -372,21 +519,6 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
   const btnAddTrain = document.getElementById('btn-add-train') as HTMLButtonElement
   const btnCap = document.getElementById('btn-capacity') as HTMLButtonElement
   const btnNewLine = document.getElementById('btn-new-line') as HTMLButtonElement
-  const linesList = document.getElementById('lines-list') as HTMLDivElement
-  function renderLinesPanel() {
-    if (!linesList) return
-    linesList.innerHTML = state.lines.map(l=>`<div style="display:flex;align-items:center;gap:6px;margin:2px 0">
-      <span style="display:inline-block;width:10px;height:10px;background:${l.color};border-radius:2px"></span>
-      <button data-line="${l.id}" class="line-select" style="font-size:12px">${l.name}</button>
-      <small style="opacity:.7">${l.color}</small>
-    </div>`).join('')
-    linesList.querySelectorAll('button.line-select').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const id = Number((btn as HTMLButtonElement).dataset.line)
-        state.currentLineId = id
-      })
-    })
-  }
   if (btnAddTrain) btnAddTrain.onclick = ()=>{
     if (state.currentLineId==null) return
     state.trains.push({ id: nextId++, lineId: state.currentLineId, atIndex: 0, t: 0, dir: 1, capacity: 6, passengersBy: zeroByShape(), passengersTo: {}, dwell: 0 })
@@ -410,7 +542,7 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
       const color = COLORS[(state.nextLineNum-1)%COLORS.length]
       addLine(color, state.stations[bestI], state.stations[bestJ])
       state.currentLineId = state.lines[state.lines.length-1].id
-      renderLinesPanel()
+      // renderLinesPanel() is already called in addLine()
     }
   }
   renderLinesPanel()
@@ -452,6 +584,7 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
       }
       interaction.drawingFrom = null
       interaction.previewTo = null
+      interaction.selectedLine = null // Reset selected line on pointer up
     }
     pointers.delete(e.pointerId)
     if (pointers.size < 2) pinchDist0 = 0
@@ -483,6 +616,9 @@ function main() {
   const camera = new Camera()
   setupInput(canvas, camera)
   spawnInitialWorld()
+
+  // Initialize UI
+  renderLinesPanel()
 
   // loop with fixed timestep
   let last = performance.now()
