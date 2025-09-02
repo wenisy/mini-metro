@@ -214,11 +214,28 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
     canvas.setPointerCapture(e.pointerId)
     if (pointers.size === 1) {
-      // check if pressing on a station to start drawing a line
       const world = camera.toWorld({ x: e.clientX, y: e.clientY })
       const s = hitTestStation(world)
-      if (s) { interaction.drawingFrom = s; interaction.previewTo = { ...s.pos }; isPanning = false; return }
-      isPanning = true
+      if (interaction.drawingFrom) {
+        // Second tap: try to connect
+        if (s && s.id !== interaction.drawingFrom.id) {
+          addLine('#3498db', interaction.drawingFrom, s)
+        }
+        interaction.drawingFrom = null
+        interaction.previewTo = null
+        return
+      } else {
+        if (s) {
+          // First tap: start drawing from station
+          interaction.drawingFrom = s
+          interaction.previewTo = { ...s.pos }
+          isPanning = false
+          return
+        } else {
+          // Start panning if not tapping a station
+          isPanning = true
+        }
+      }
     }
   }
   function onPointerMove(e: PointerEvent) {
