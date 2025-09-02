@@ -322,6 +322,10 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
       const center = { x: (a.x+b.x)/2, y: (a.y+b.y)/2 }
       const worldBefore = camera.toWorld(center)
       camera.scale = clamp(camera.scale * factor, 0.5, 3)
+  // Prevent iOS context menu and selection gestures on canvas
+  canvas.addEventListener('contextmenu', (e)=> e.preventDefault())
+  canvas.addEventListener('selectstart', (e)=> e.preventDefault())
+
       const worldAfter = camera.toWorld(center)
       camera.pos.x += worldBefore.x - worldAfter.x
       camera.pos.y += worldBefore.y - worldAfter.y

@@ -6,9 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>Mini Metro (Web) — Infinite Mode</title>
     <style>
-      html, body { height: 100%; margin: 0; background: #111; color: #eee; touch-action: none; }
+      html, body { height: 100%; margin: 0; background: #111; color: #eee; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
       #app { height: 100%; }
-      canvas { display: block; width: 100%; height: 100%; }
+      canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
       .overlay { position: fixed; left: 0; top: 0; padding: 8px 10px; font: 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto; opacity: 0.75; }
     </style>
   </head>
