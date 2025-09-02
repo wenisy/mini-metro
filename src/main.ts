@@ -35,9 +35,11 @@ function pointerPos(e: { clientX: number; clientY: number }, canvas: HTMLCanvasE
 }
 
 // Game state stubs
-interface Station { id: number; pos: Vec2; shape: 'circle'|'triangle'|'square'; queue: number }
+type Shape = 'circle'|'triangle'|'square'
+function zeroByShape(): Record<Shape, number> { return { circle: 0, triangle: 0, square: 0 } }
+interface Station { id: number; pos: Vec2; shape: Shape; queueBy: Record<Shape, number> }
 interface Line { id: number; color: string; stations: number[] }
-interface Train { id: number; lineId: number; atIndex: number; t: number; capacity: number; passengers: number }
+interface Train { id: number; lineId: number; atIndex: number; t: number; capacity: number; passengersBy: Record<Shape, number>; dwell: number }
 
 const state = {
   time: 0,
@@ -46,7 +48,13 @@ const state = {
   trains: [] as Train[],
   autoSpawnEnabled: false,
   spawnOnConnect: false,
+  gameOver: false,
 }
+
+
+const DWELL_TIME = 0.8
+const QUEUE_FAIL = 12
+function total(rec: Record<Shape, number>) { return rec.circle + rec.triangle + rec.square }
 
 // interaction state for line drawing
 const interaction = {
@@ -56,7 +64,7 @@ const interaction = {
 
 let nextId = 1
 function addStation(pos: Vec2, shape: Station['shape']): Station {
-  const s: Station = { id: nextId++, pos, shape, queue: 0 }
+  const s: Station = { id: nextId++, pos, shape, queueBy: zeroByShape() }
   state.stations.push(s); return s
 }
 
@@ -64,7 +72,7 @@ function addLine(color: string, a: Station, b: Station): Line {
   const l: Line = { id: nextId++, color, stations: [a.id, b.id] }
   state.lines.push(l)
   // add one train for line
-  state.trains.push({ id: nextId++, lineId: l.id, atIndex: 0, t: 0, capacity: 6, passengers: 0 })
+  state.trains.push({ id: nextId++, lineId: l.id, atIndex: 0, t: 0, capacity: 6, passengersBy: zeroByShape(), dwell: 0 })
   return l
 }
 
@@ -145,8 +153,9 @@ function drawStation(ctx: CanvasRenderingContext2D, s: Station) {
     case 'triangle': ctx.beginPath(); ctx.moveTo(0,-12); ctx.lineTo(10,8); ctx.lineTo(-10,8); ctx.closePath(); ctx.fill(); ctx.stroke(); break
     case 'square': ctx.beginPath(); ctx.rect(-10,-10,20,20); ctx.fill(); ctx.stroke(); break
   }
-  if (s.queue > 0) {
-    ctx.fillStyle = '#fff'; ctx.font = '12px system-ui'; ctx.fillText(String(s.queue), 12, -12)
+  const totalQ = total(s.queueBy)
+  if (totalQ > 0) {
+    ctx.fillStyle = '#fff'; ctx.font = '12px system-ui'; ctx.fillText(String(totalQ), 12, -12)
   }
   ctx.restore()
 }
@@ -172,7 +181,10 @@ function drawTrain(ctx: CanvasRenderingContext2D, t: Train) {
   ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2); ctx.fill();
   // show passengers in train as small bar
-  if (t.passengers>0) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(x-6,y+7, Math.min(12, t.passengers*2), 2) }
+  const totalP = t.passengersBy.circle + t.passengersBy.triangle + t.passengersBy.square
+  if (totalP>0) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(x-6,y+7, Math.min(12, totalP*2), 2) }
+  // dwell indicator
+  if (t.dwell > 0) { ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(x-6,y+10, 12*(t.dwell/0.8), 2) }
   ctx.restore();
 }
 
@@ -180,23 +192,34 @@ function update(dt: number) {
   state.time += dt
   maybeSpawnStations(dt)
   maybeEnsureBaselineLine()
-  // spawn passengers as station queue (simplified)
+  // spawn passengers with target shape different from station shape
   if (state.stations.length && Math.random() < dt * (0.2 + state.time*0.02)) {
     const s = state.stations[Math.floor(Math.random()*state.stations.length)]
-    s.queue = clamp(s.queue + 1, 0, 99)
+    const candidates = (['circle','triangle','square'] as Shape[]).filter(sh => sh !== s.shape)
+    const target: Shape = candidates[Math.floor(Math.random()*candidates.length)]
+    s.queueBy[target] = Math.min(99, s.queueBy[target] + 1)
+    // fail condition: too many waiting passengers at a station
+    if (total(s.queueBy) >= QUEUE_FAIL) state.gameOver = true
   }
   // trains move and service
   for (const t of state.trains) {
     t.t += dt * 0.25
     if (t.t >= 1) { t.t = 0; t.atIndex = (t.atIndex + 1) % state.lines.find(l=>l.id===t.lineId)!.stations.length
-      // service station
+      // service station: dwell, unload matching shapes, then load until capacity
       const sid = state.lines.find(l=>l.id===t.lineId)!.stations[t.atIndex]
-      const s = state.stations.find(s=>s.id===sid)!;
-      const toLoad = Math.min(s.queue, t.capacity - t.passengers)
-      s.queue -= toLoad; t.passengers += toLoad
-      // randomly drop some passengers at station (simplified)
-      const drop = Math.min(t.passengers, Math.floor(Math.random()*3))
-      t.passengers -= drop
+      const s = state.stations.find(st=>st.id===sid)!;
+      // Unload: any passengers whose target shape equals current station shape
+      t.passengersBy[s.shape] = 0
+      // Dwell timer on stop
+      t.dwell = Math.max(t.dwell, DWELL_TIME)
+      // Load: fill by prioritizing shapes not equal to station shape (simple rule)
+      let capacityLeft = t.capacity - (t.passengersBy.circle + t.passengersBy.triangle + t.passengersBy.square)
+      const order: Shape[] = ['circle','triangle','square']
+      for (const sh of order) {
+        if (capacityLeft <= 0) break
+        const take = Math.min(s.queueBy[sh], capacityLeft)
+        if (take > 0) { s.queueBy[sh] -= take; t.passengersBy[sh] += take; capacityLeft -= take }
+      }
     }
   }
 }
