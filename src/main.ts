@@ -53,6 +53,9 @@ const state = {
   nextLineNum: 1,
 }
 
+const COLORS = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22']
+
+
 
 const DWELL_TIME = 0.8
 const QUEUE_FAIL = 12
@@ -382,8 +385,7 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
           const d = dist2(state.stations[i].pos, state.stations[j].pos)
           if (d<best){best=d;bestI=i;bestJ=j}
         }
-      const colors = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22']
-      const color = colors[(state.nextLineNum-1)%colors.length]
+      const color = COLORS[(state.nextLineNum-1)%COLORS.length]
       addLine(color, state.stations[bestI], state.stations[bestJ])
       state.currentLineId = state.lines[state.lines.length-1].id
       renderLinesPanel()
