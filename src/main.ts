@@ -37,9 +37,9 @@ function pointerPos(e: { clientX: number; clientY: number }, canvas: HTMLCanvasE
 // Game state stubs
 type Shape = 'circle'|'triangle'|'square'
 function zeroByShape(): Record<Shape, number> { return { circle: 0, triangle: 0, square: 0 } }
-interface Station { id: number; pos: Vec2; shape: Shape; queueBy: Record<Shape, number> }
+interface Station { id: number; pos: Vec2; shape: Shape; queueBy: Record<Shape, number>; queueTo: Record<number, Record<Shape, number>> }
 interface Line { id: number; name: string; color: string; stations: number[] }
-interface Train { id: number; lineId: number; atIndex: number; t: number; dir: 1|-1; capacity: number; passengersBy: Record<Shape, number>; dwell: number }
+interface Train { id: number; lineId: number; atIndex: number; t: number; dir: 1|-1; capacity: number; passengersBy: Record<Shape, number>; passengersTo: Record<number, Record<Shape, number>>; dwell: number }
 
 const state = {
   time: 0,
@@ -69,7 +69,7 @@ const interaction = {
 
 let nextId = 1
 function addStation(pos: Vec2, shape: Station['shape']): Station {
-  const s: Station = { id: nextId++, pos, shape, queueBy: zeroByShape() }
+  const s: Station = { id: nextId++, pos, shape, queueBy: zeroByShape(), queueTo: {} }
   state.stations.push(s); return s
 }
 
@@ -78,7 +78,7 @@ function addLine(color: string, a: Station, b: Station, name?: string): Line {
   const l: Line = { id: nextId++, name: lineName, color, stations: [a.id, b.id] }
   state.lines.push(l)
   // add one train for line by default
-  state.trains.push({ id: nextId++, lineId: l.id, atIndex: 0, t: 0, dir: 1, capacity: 6, passengersBy: zeroByShape(), dwell: 0 })
+  state.trains.push({ id: nextId++, lineId: l.id, atIndex: 0, t: 0, dir: 1, capacity: 6, passengersBy: zeroByShape(), passengersTo: {}, dwell: 0 })
   return l
 }
 
@@ -222,14 +222,19 @@ function update(dt: number) {
   state.time += dt
   maybeSpawnStations(dt)
   maybeEnsureBaselineLine()
-  // spawn passengers with target shape different from station shape
+  // spawn passenger with concrete destination
   if (state.stations.length && Math.random() < dt * (0.2 + state.time*0.02)) {
-    const s = state.stations[Math.floor(Math.random()*state.stations.length)]
-    const candidates = (['circle','triangle','square'] as Shape[]).filter(sh => sh !== s.shape)
-    const target: Shape = candidates[Math.floor(Math.random()*candidates.length)]
-    s.queueBy[target] = Math.min(99, s.queueBy[target] + 1)
-    // fail condition: too many waiting passengers at a station
-    if (total(s.queueBy) >= QUEUE_FAIL) state.gameOver = true
+    const from = state.stations[Math.floor(Math.random()*state.stations.length)]
+    // choose a target station with different shape; prefer connected/reachable later
+    const candidates = state.stations.filter(st => st.id!==from.id && st.shape!==from.shape)
+    if (candidates.length) {
+      const to = candidates[Math.floor(Math.random()*candidates.length)]
+      const targetShape: Shape = to.shape
+      from.queueBy[targetShape] = Math.min(99, from.queueBy[targetShape] + 1)
+      from.queueTo[to.id] = from.queueTo[to.id] || zeroByShape()
+      from.queueTo[to.id][targetShape] = Math.min(99, (from.queueTo[to.id][targetShape]||0) + 1)
+      if (total(from.queueBy) >= QUEUE_FAIL) state.gameOver = true
+    }
   }
   // trains move and service
   for (const t of state.trains) {
@@ -253,13 +258,30 @@ function update(dt: number) {
       t.passengersBy[s.shape] = 0
       // dwell start
       t.dwell = Math.max(t.dwell, DWELL_TIME)
-      // load by capacity left
+      // load by capacity left — prefer passengers whose destination is along this line direction (future: real routing)
       let capacityLeft = t.capacity - (t.passengersBy.circle + t.passengersBy.triangle + t.passengersBy.square)
       const order: Shape[] = ['circle','triangle','square']
       for (const sh of order) {
         if (capacityLeft <= 0) break
-        const take = Math.min(s.queueBy[sh], capacityLeft)
-        if (take > 0) { s.queueBy[sh] -= take; t.passengersBy[sh] += take; capacityLeft -= take }
+        // if per-destination exists, drain from any destination bucket for this shape
+        let remain = capacityLeft
+        for (const destIdStr of Object.keys(s.queueTo)) {
+          if (remain<=0) break
+          const destId = Number(destIdStr)
+          const perDest = s.queueTo[destId]
+          const have = perDest?.[sh] || 0
+          if (have>0) {
+            const take = Math.min(have, remain)
+            perDest[sh] -= take
+            s.queueBy[sh] -= take
+            // add into train passengersTo
+            t.passengersTo[destId] = t.passengersTo[destId] || zeroByShape()
+            t.passengersTo[destId][sh] = (t.passengersTo[destId][sh]||0) + take
+            t.passengersBy[sh] += take
+            remain -= take
+          }
+        }
+        capacityLeft = remain
       }
     }
   }
@@ -367,7 +389,7 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
   }
   if (btnAddTrain) btnAddTrain.onclick = ()=>{
     if (state.currentLineId==null) return
-    state.trains.push({ id: nextId++, lineId: state.currentLineId, atIndex: 0, t: 0, dir: 1, capacity: 6, passengersBy: zeroByShape(), dwell: 0 })
+    state.trains.push({ id: nextId++, lineId: state.currentLineId, atIndex: 0, t: 0, dir: 1, capacity: 6, passengersBy: zeroByShape(), passengersTo: {}, dwell: 0 })
   }
   if (btnCap) btnCap.onclick = ()=>{
     if (state.currentLineId==null) return
