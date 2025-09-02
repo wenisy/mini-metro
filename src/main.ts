@@ -20,6 +20,7 @@ function setupCanvas(canvas: HTMLCanvasElement) {
 }
 
 function clamp(v: number, a: number, b: number) { return Math.max(a, Math.min(b, v)) }
+function dist2(a: Vec2, b: Vec2) { const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy }
 
 class Camera {
   pos: Vec2 = { x: 0, y: 0 }
@@ -40,6 +41,12 @@ const state = {
   trains: [] as Train[],
 }
 
+// interaction state for line drawing
+const interaction = {
+  drawingFrom: null as Station | null,
+  previewTo: null as Vec2 | null,
+}
+
 let nextId = 1
 function addStation(pos: Vec2, shape: Station['shape']): Station {
   const s: Station = { id: nextId++, pos, shape, queue: 0 }
@@ -54,12 +61,57 @@ function addLine(color: string, a: Station, b: Station): Line {
   return l
 }
 
+function maybeEnsureBaselineLine() {
+  if (state.lines.length === 0 && state.stations.length >= 2) {
+    // connect the nearest pair
+    let bestI = 0, bestJ = 1, bestD = Infinity
+    for (let i=0;i<state.stations.length;i++)
+      for (let j=i+1;j<state.stations.length;j++) {
+        const d = dist2(state.stations[i].pos, state.stations[j].pos)
+        if (d < bestD) { bestD = d; bestI = i; bestJ = j }
+      }
+    const a = state.stations[bestI]
+    const b = state.stations[bestJ]
+    addLine('#e74c3c', a, b)
+  }
+}
+
+
 function spawnInitialWorld() {
-  const s1 = addStation({ x: 100, y: 100 }, 'circle')
-  const s2 = addStation({ x: 300, y: 120 }, 'triangle')
-  const s3 = addStation({ x: 200, y: 260 }, 'square')
-  addLine('#e74c3c', s1, s2)
-  addLine('#3498db', s2, s3)
+  // seed stations
+  addStation({ x: 120, y: 120 }, 'circle')
+  addStation({ x: 320, y: 140 }, 'triangle')
+  addStation({ x: 220, y: 280 }, 'square')
+}
+
+// simple RNG station spawner with min distance avoidance
+let spawnTimer = 0
+function hitTestStation(p: Vec2): Station | null {
+  const r = 14
+  let best: Station | null = null
+  let bestD = Infinity
+  for (const s of state.stations) {
+    const d = dist2(s.pos, p)
+    if (d < r*r && d < bestD) { bestD = d; best = s }
+  }
+  return best
+}
+function maybeSpawnStations(dt: number) {
+  spawnTimer += dt
+  const interval = clamp(3 - state.time*0.02, 1, 3) // faster over time
+  if (spawnTimer >= interval) {
+    spawnTimer = 0
+    for (let tries=0; tries<20; tries++) {
+      const pos = { x: 80 + Math.random()*440, y: 80 + Math.random()*640 }
+      const shapes: Station['shape'][] = ['circle','triangle','square']
+      const shape = shapes[Math.floor(Math.random()*shapes.length)]
+      const minR = 40
+      if (state.stations.every(s=> dist2(s.pos, pos) >= minR*minR)) {
+        addStation(pos, shape)
+        break
+      }
+    }
+  }
 }
 
 function drawStation(ctx: CanvasRenderingContext2D, s: Station) {
@@ -99,19 +151,23 @@ function drawTrain(ctx: CanvasRenderingContext2D, t: Train) {
   ctx.save();
   ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2); ctx.fill();
+  // show passengers in train as small bar
+  if (t.passengers>0) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(x-6,y+7, Math.min(12, t.passengers*2), 2) }
   ctx.restore();
 }
 
 function update(dt: number) {
   state.time += dt
+  maybeSpawnStations(dt)
+  maybeEnsureBaselineLine()
   // spawn passengers as station queue (simplified)
-  if (Math.random() < dt * 0.5) {
+  if (state.stations.length && Math.random() < dt * (0.2 + state.time*0.02)) {
     const s = state.stations[Math.floor(Math.random()*state.stations.length)]
     s.queue = clamp(s.queue + 1, 0, 99)
   }
   // trains move and service
   for (const t of state.trains) {
-    t.t += dt * 0.2
+    t.t += dt * 0.25
     if (t.t >= 1) { t.t = 0; t.atIndex = (t.atIndex + 1) % state.lines.find(l=>l.id===t.lineId)!.stations.length
       // service station
       const sid = state.lines.find(l=>l.id===t.lineId)!.stations[t.atIndex]
@@ -132,30 +188,87 @@ function render(ctx: CanvasRenderingContext2D, camera: Camera, canvas: HTMLCanva
   ctx.fillStyle = '#111'; ctx.fillRect(camera.pos.x, camera.pos.y, canvas.width/camera.scale, canvas.height/camera.scale)
   // draw lines then stations then trains
   state.lines.forEach(l=>drawLine(ctx,l))
+  // preview line if drawing
+  if (interaction.drawingFrom && interaction.previewTo) {
+    ctx.save();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = '#aaa'; ctx.lineWidth = 4
+    ctx.beginPath();
+    const a = interaction.drawingFrom.pos
+    ctx.moveTo(a.x, a.y)
+    const b = interaction.previewTo
+    ctx.lineTo(b.x, b.y)
+    ctx.stroke();
+    ctx.restore();
+  }
   state.stations.forEach(s=>drawStation(ctx,s))
   state.trains.forEach(t=>drawTrain(ctx,t))
   ctx.restore()
 }
 
 function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
-  let isDragging = false
-  let last: Vec2 | null = null
-  canvas.addEventListener('pointerdown', (e)=>{
+  let isPanning = false
+  let pinchDist0 = 0
+  let pointers: Map<number, Vec2> = new Map()
+
+  function onPointerDown(e: PointerEvent) {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
     canvas.setPointerCapture(e.pointerId)
-    isDragging = true
-    last = { x: e.clientX, y: e.clientY }
-  })
-  canvas.addEventListener('pointermove', (e)=>{
-    if (!isDragging || !last) return
-    const dx = e.clientX - last.x
-    const dy = e.clientY - last.y
-    camera.pos.x -= dx / camera.scale
-    camera.pos.y -= dy / camera.scale
-    last = { x: e.clientX, y: e.clientY }
-  })
-  canvas.addEventListener('pointerup', () => {
-    isDragging = false; last = null
-  })
+    if (pointers.size === 1) {
+      // check if pressing on a station to start drawing a line
+      const world = camera.toWorld({ x: e.clientX, y: e.clientY })
+      const s = hitTestStation(world)
+      if (s) { interaction.drawingFrom = s; interaction.previewTo = { ...s.pos }; isPanning = false; return }
+      isPanning = true
+    }
+  }
+  function onPointerMove(e: PointerEvent) {
+    const prev = pointers.get(e.pointerId)
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointers.size === 1) {
+      if (interaction.drawingFrom) {
+        // update preview
+        interaction.previewTo = camera.toWorld({ x: e.clientX, y: e.clientY })
+      } else if (isPanning && prev) {
+        const dx = e.clientX - prev.x
+        const dy = e.clientY - prev.y
+        camera.pos.x -= dx / camera.scale
+        camera.pos.y -= dy / camera.scale
+      }
+    } else if (pointers.size === 2) {
+      const [a,b] = [...pointers.values()]
+      const d = Math.hypot(a.x-b.x, a.y-b.y)
+      if (pinchDist0 === 0) pinchDist0 = d
+      const factor = d / pinchDist0
+      const center = { x: (a.x+b.x)/2, y: (a.y+b.y)/2 }
+      const worldBefore = camera.toWorld(center)
+      camera.scale = clamp(camera.scale * factor, 0.5, 3)
+      const worldAfter = camera.toWorld(center)
+      camera.pos.x += worldBefore.x - worldAfter.x
+      camera.pos.y += worldBefore.y - worldAfter.y
+      pinchDist0 = d
+    }
+  }
+  function onPointerUp(e: PointerEvent) {
+    // finish drawing if released on a station
+    if (interaction.drawingFrom) {
+      const world = camera.toWorld({ x: e.clientX, y: e.clientY })
+      const target = hitTestStation(world)
+      if (target && target.id !== interaction.drawingFrom.id) {
+        addLine('#3498db', interaction.drawingFrom, target)
+      }
+      interaction.drawingFrom = null
+      interaction.previewTo = null
+    }
+    pointers.delete(e.pointerId)
+    if (pointers.size < 2) pinchDist0 = 0
+    if (pointers.size === 0) { isPanning = false }
+  }
+
+  canvas.addEventListener('pointerdown', onPointerDown)
+  canvas.addEventListener('pointermove', onPointerMove)
+  canvas.addEventListener('pointerup', onPointerUp)
+  canvas.addEventListener('pointercancel', onPointerUp)
+
   canvas.addEventListener('wheel', (e)=>{
     e.preventDefault()
     const factor = e.deltaY < 0 ? 1.1 : 0.9
