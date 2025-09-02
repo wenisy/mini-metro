@@ -17,9 +17,22 @@
       <canvas id="game"></canvas>
       <div class="overlay" id="hud">Loading…</div>
       <div class="overlay" style="right: 0; left: auto; text-align: right">
-        <button id="toggle-auto" style="font-size:12px">Auto Spawn: Off</button>
-        <button id="spawn-one" style="font-size:12px">+ Station</button>
-        <button id="spawn-on-connect" style="font-size:12px">Spawn on Connect: Off</button>
+        <div style="margin-bottom:6px">
+          <button id="toggle-auto" style="font-size:12px">Auto Spawn: Off</button>
+          <button id="spawn-one" style="font-size:12px">+ Station</button>
+          <button id="spawn-on-connect" style="font-size:12px">Spawn on Connect: Off</button>
+        </div>
+        <div style="margin-bottom:6px">
+          <button id="btn-add-train" style="font-size:12px">+ Train</button>
+          <button id="btn-capacity" style="font-size:12px">Capacity +1</button>
+        </div>
+        <div id="lines-panel" style="max-width: 220px; text-align:left; background: rgba(0,0,0,0.2); padding:6px; border-radius:6px">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px">
+            <strong style="font-size:12px">Lines</strong>
+            <button id="btn-new-line" style="font-size:12px">+ New Line</button>
+          </div>
+          <div id="lines-list" style="font-size:12px"></div>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

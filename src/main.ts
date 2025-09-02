@@ -38,7 +38,7 @@ function pointerPos(e: { clientX: number; clientY: number }, canvas: HTMLCanvasE
 type Shape = 'circle'|'triangle'|'square'
 function zeroByShape(): Record<Shape, number> { return { circle: 0, triangle: 0, square: 0 } }
 interface Station { id: number; pos: Vec2; shape: Shape; queueBy: Record<Shape, number> }
-interface Line { id: number; color: string; stations: number[] }
+interface Line { id: number; name: string; color: string; stations: number[] }
 interface Train { id: number; lineId: number; atIndex: number; t: number; dir: 1|-1; capacity: number; passengersBy: Record<Shape, number>; dwell: number }
 
 const state = {
@@ -49,6 +49,8 @@ const state = {
   autoSpawnEnabled: false,
   spawnOnConnect: false,
   gameOver: false,
+  currentLineId: null as number | null,
+  nextLineNum: 1,
 }
 
 
@@ -68,10 +70,11 @@ function addStation(pos: Vec2, shape: Station['shape']): Station {
   state.stations.push(s); return s
 }
 
-function addLine(color: string, a: Station, b: Station): Line {
-  const l: Line = { id: nextId++, color, stations: [a.id, b.id] }
+function addLine(color: string, a: Station, b: Station, name?: string): Line {
+  const lineName = name ?? `${state.nextLineNum++}号线`
+  const l: Line = { id: nextId++, name: lineName, color, stations: [a.id, b.id] }
   state.lines.push(l)
-  // add one train for line
+  // add one train for line by default
   state.trains.push({ id: nextId++, lineId: l.id, atIndex: 0, t: 0, dir: 1, capacity: 6, passengersBy: zeroByShape(), dwell: 0 })
   return l
 }
@@ -340,6 +343,54 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
         const world = camera.toWorld(screen)
         const snapped = nearestStationWithin(world, 20)
         interaction.previewTo = snapped ? { ...snapped.pos } : world
+  // HUD actions: +Train / Capacity +1 / Lines list and New Line
+  const btnAddTrain = document.getElementById('btn-add-train') as HTMLButtonElement
+  const btnCap = document.getElementById('btn-capacity') as HTMLButtonElement
+  const btnNewLine = document.getElementById('btn-new-line') as HTMLButtonElement
+  const linesList = document.getElementById('lines-list') as HTMLDivElement
+  function renderLinesPanel() {
+    if (!linesList) return
+    linesList.innerHTML = state.lines.map(l=>`<div style="display:flex;align-items:center;gap:6px;margin:2px 0">
+      <span style="display:inline-block;width:10px;height:10px;background:${l.color};border-radius:2px"></span>
+      <button data-line="${l.id}" class="line-select" style="font-size:12px">${l.name}</button>
+      <small style="opacity:.7">${l.color}</small>
+    </div>`).join('')
+    linesList.querySelectorAll('button.line-select').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = Number((btn as HTMLButtonElement).dataset.line)
+        state.currentLineId = id
+      })
+    })
+  }
+  if (btnAddTrain) btnAddTrain.onclick = ()=>{
+    if (state.currentLineId==null) return
+    state.trains.push({ id: nextId++, lineId: state.currentLineId, atIndex: 0, t: 0, dir: 1, capacity: 6, passengersBy: zeroByShape(), dwell: 0 })
+  }
+  if (btnCap) btnCap.onclick = ()=>{
+    if (state.currentLineId==null) return
+    state.trains.filter(t=>t.lineId===state.currentLineId).forEach(t=> t.capacity += 1)
+  }
+  if (btnNewLine) btnNewLine.onclick = ()=>{
+    // 创建一条新线（默认取最近的两个站点连接，或等待下一次A→B选择使用新线）
+    state.currentLineId = null
+    // 下次点A→点B时如果选择“新线”，就用新的颜色
+    // 简化：立即创建基于最近站点对的新线
+    if (state.stations.length>=2) {
+      let bestI=0,bestJ=1, best=Infinity
+      for (let i=0;i<state.stations.length;i++)
+        for (let j=i+1;j<state.stations.length;j++){
+          const d = dist2(state.stations[i].pos, state.stations[j].pos)
+          if (d<best){best=d;bestI=i;bestJ=j}
+        }
+      const colors = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22']
+      const color = colors[(state.nextLineNum-1)%colors.length]
+      addLine(color, state.stations[bestI], state.stations[bestJ])
+      state.currentLineId = state.lines[state.lines.length-1].id
+      renderLinesPanel()
+    }
+  }
+  renderLinesPanel()
+
         // Prevent panning while drawing
         return
       } else if (isPanning && prev) {
