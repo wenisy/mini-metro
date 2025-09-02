@@ -39,7 +39,7 @@ type Shape = 'circle'|'triangle'|'square'
 function zeroByShape(): Record<Shape, number> { return { circle: 0, triangle: 0, square: 0 } }
 interface Station { id: number; pos: Vec2; shape: Shape; queueBy: Record<Shape, number> }
 interface Line { id: number; color: string; stations: number[] }
-interface Train { id: number; lineId: number; atIndex: number; t: number; capacity: number; passengersBy: Record<Shape, number>; dwell: number }
+interface Train { id: number; lineId: number; atIndex: number; t: number; dir: 1|-1; capacity: number; passengersBy: Record<Shape, number>; dwell: number }
 
 const state = {
   time: 0,
@@ -72,8 +72,32 @@ function addLine(color: string, a: Station, b: Station): Line {
   const l: Line = { id: nextId++, color, stations: [a.id, b.id] }
   state.lines.push(l)
   // add one train for line
-  state.trains.push({ id: nextId++, lineId: l.id, atIndex: 0, t: 0, capacity: 6, passengersBy: zeroByShape(), dwell: 0 })
+  state.trains.push({ id: nextId++, lineId: l.id, atIndex: 0, t: 0, dir: 1, capacity: 6, passengersBy: zeroByShape(), dwell: 0 })
   return l
+}
+
+
+function findLineBetween(aId: number, bId: number): Line | null {
+  for (const l of state.lines) {
+    if (l.stations.length === 2) {
+      const [x,y] = l.stations
+      if ((x===aId && y===bId) || (x===bId && y===aId)) return l
+    }
+  }
+  return null
+}
+
+function removeLine(lineId: number) {
+  const idx = state.lines.findIndex(l=>l.id===lineId)
+  if (idx>=0) state.lines.splice(idx,1)
+  // remove trains on that line
+  state.trains = state.trains.filter(t=>t.lineId!==lineId)
+}
+
+function toggleLine(color: string, a: Station, b: Station): 'added'|'removed'|'noop' {
+  const existing = findLineBetween(a.id, b.id)
+  if (existing) { removeLine(existing.id); return 'removed' }
+  addLine(color, a, b); return 'added'
 }
 
 function maybeEnsureBaselineLine() {
@@ -203,16 +227,27 @@ function update(dt: number) {
   }
   // trains move and service
   for (const t of state.trains) {
+    const line = state.lines.find(l=>l.id===t.lineId)!;
+    // handle dwell at stops
+    if (t.dwell > 0) { t.dwell = Math.max(0, t.dwell - dt); continue }
+
     t.t += dt * 0.25
-    if (t.t >= 1) { t.t = 0; t.atIndex = (t.atIndex + 1) % state.lines.find(l=>l.id===t.lineId)!.stations.length
-      // service station: dwell, unload matching shapes, then load until capacity
-      const sid = state.lines.find(l=>l.id===t.lineId)!.stations[t.atIndex]
+    if (t.t >= 1) {
+      t.t = 0
+      // advance along line with direction; reverse at ends (longest traversal)
+      const last = line.stations.length - 1
+      if (t.dir > 0 && t.atIndex >= last-1) t.dir = -1
+      else if (t.dir < 0 && t.atIndex <= 0) t.dir = 1
+      t.atIndex = clamp(t.atIndex + (t.dir>0? 1: -1), 0, last-1)
+
+      // service station: unload/load
+      const sid = line.stations[t.atIndex]
       const s = state.stations.find(st=>st.id===sid)!;
-      // Unload: any passengers whose target shape equals current station shape
+      // unload matching
       t.passengersBy[s.shape] = 0
-      // Dwell timer on stop
+      // dwell start
       t.dwell = Math.max(t.dwell, DWELL_TIME)
-      // Load: fill by prioritizing shapes not equal to station shape (simple rule)
+      // load by capacity left
       let capacityLeft = t.capacity - (t.passengersBy.circle + t.passengersBy.triangle + t.passengersBy.square)
       const order: Shape[] = ['circle','triangle','square']
       for (const sh of order) {
@@ -267,9 +302,8 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
         // Second tap: try to connect (snap to nearest within 20px)
         const target = s ?? nearestStationWithin(world, 20)
         if (target && target.id !== interaction.drawingFrom.id) {
-          addLine('#3498db', interaction.drawingFrom, target)
-          if (state.spawnOnConnect) {
-            // spawn a new station near mid point
+          const res = toggleLine('#3498db', interaction.drawingFrom, target)
+          if (res==='added' && state.spawnOnConnect) {
             const a = interaction.drawingFrom.pos
             const b = target.pos
             const mid = { x: (a.x+b.x)/2 + (Math.random()-0.5)*40, y: (a.y+b.y)/2 + (Math.random()-0.5)*40 }
@@ -339,7 +373,7 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
       const world = camera.toWorld(screen)
       const target = hitTestStation(world)
       if (target && target.id !== interaction.drawingFrom.id) {
-        addLine('#3498db', interaction.drawingFrom, target)
+        toggleLine('#3498db', interaction.drawingFrom, target)
       }
       interaction.drawingFrom = null
       interaction.previewTo = null
