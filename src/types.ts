@@ -19,6 +19,13 @@ export interface Line {
   name: string
   color: string
   stations: number[]
+  stats?: LineStats // 可选的统计信息
+}
+
+export interface LineStats {
+  totalPassengersTransported: number  // 累计运载乘客数
+  totalIncome: number                 // 累计收入
+  lastUpdateTime: number             // 最后更新时间
 }
 
 // 列车视觉状态
@@ -99,20 +106,21 @@ export interface SmartAttachmentState {
 
 // 游戏状态类型
 export interface GameState {
-  time: number
-  stations: Station[]
-  lines: Line[]
-  trains: Train[]
-  autoSpawnEnabled: boolean
-  gameOver: boolean
-  currentLineId: number | null
-  nextLineNum: number
-  showLinkChooser: boolean
-  linkChooserFrom: Station | null
-  linkChooserTo: Station | null
-  passengerSpawnBaseRate: number
-  infiniteMode: boolean
-  gameSpeed: number // 游戏速度倍数 (1x, 2x, 3x)
+   time: number
+   stations: Station[]
+   lines: Line[]
+   trains: Train[]
+   autoSpawnEnabled: boolean
+   gameOver: boolean
+   currentLineId: number | null
+   nextLineNum: number
+   showLinkChooser: boolean
+   linkChooserFrom: Station | null
+   linkChooserTo: Station | null
+   passengerSpawnBaseRate: number
+   infiniteMode: boolean
+   gameSpeed: number // 游戏速度倍数 (1x, 2x, 3x)
+   paused: boolean // 游戏暂停状态
 }
 
 // 相机类型

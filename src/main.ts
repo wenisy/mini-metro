@@ -50,6 +50,8 @@ function update(dt: number) {
   if (Math.floor(state.time * 10) % 10 === 0) {
     updateFinancialPanel()
     updateGameStats()
+    // 实时更新线路面板数据
+    renderLinesPanel()
   }
 }
 
@@ -75,7 +77,7 @@ function main() {
   // 主循环，固定时间步长，支持速度调节
   let last = performance.now()
   let acc = 0
-  const baseStep = 1/30 // 30Hz 基础逻辑频率
+  const baseStep = 1 / 30 // 30Hz 基础逻辑频率
 
   function frame(now: number) {
     const dt = (now - last) / 1000
@@ -85,9 +87,12 @@ function main() {
     // 根据游戏速度调整时间步长
     const step = baseStep / state.gameSpeed
 
-    while (acc >= step) {
-      update(step)
-      acc -= step
+    // 只有在未暂停时才更新游戏逻辑
+    if (!state.paused) {
+      while (acc >= step) {
+        update(step)
+        acc -= step
+      }
     }
 
     render(ctx, camera, canvas, interaction)

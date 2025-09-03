@@ -44,20 +44,21 @@ export const priceConfig: PriceConfig = {
 
 // 游戏状态
 export const state: GameState = {
-  time: 0,
-  stations: [],
-  lines: [],
-  trains: [],
-  autoSpawnEnabled: false,
-  gameOver: false,
-  currentLineId: null,
-  nextLineNum: 1,
-  showLinkChooser: false,
-  linkChooserFrom: null,
-  linkChooserTo: null,
-  passengerSpawnBaseRate: 0.05,
-  infiniteMode: false,
-  gameSpeed: 1, // 默认1倍速
+   time: 0,
+   stations: [],
+   lines: [],
+   trains: [],
+   autoSpawnEnabled: false,
+   gameOver: false,
+   currentLineId: null,
+   nextLineNum: 1,
+   showLinkChooser: false,
+   linkChooserFrom: null,
+   linkChooserTo: null,
+   passengerSpawnBaseRate: 0.05,
+   infiniteMode: false,
+   gameSpeed: 1, // 默认1倍速
+   paused: false, // 默认不暂停
 }
 
 // 经济系统状态
@@ -243,7 +244,17 @@ export function addLine(color: string, a: Station, b: Station, name?: string, sk
   }
 
   const lineName = name ?? `${getNextAvailableLineNumber()}号线`
-  const l: Line = { id: nextId++, name: lineName, color, stations: [a.id, b.id] }
+  const l: Line = {
+    id: nextId++,
+    name: lineName,
+    color,
+    stations: [a.id, b.id],
+    stats: {
+      totalPassengersTransported: 0,
+      totalIncome: 0,
+      lastUpdateTime: performance.now()
+    }
+  }
   state.lines.push(l)
 
   // 默认添加一辆列车（免费，包含在线路建设费用中）
@@ -490,6 +501,26 @@ export function calculateNewLineCost(): number {
 
 export function calculateExtensionCost(): number {
   return Math.round(priceConfig.lineExtensionCost * priceConfig.extensionCostMultiplier)
+}
+
+// 更新线路统计信息
+export function updateLineStats(lineId: number, passengersTransported: number, income: number): void {
+  const line = state.lines.find(l => l.id === lineId)
+  if (line) {
+    // 确保统计对象存在
+    if (!line.stats) {
+      line.stats = {
+        totalPassengersTransported: 0,
+        totalIncome: 0,
+        lastUpdateTime: performance.now()
+      }
+    }
+
+    // 更新统计数据
+    line.stats.totalPassengersTransported += passengersTransported
+    line.stats.totalIncome += income
+    line.stats.lastUpdateTime = performance.now()
+  }
 }
 
 export function calculateModificationCost(): number {

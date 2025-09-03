@@ -9,8 +9,9 @@ export function setupUIControls(): void {
   const btnSpawn = document.getElementById('spawn-one') as HTMLButtonElement
   const btnDeleteMode = document.getElementById('toggle-delete-mode') as HTMLButtonElement
   const btnInfiniteMode = document.getElementById('toggle-infinite-mode') as HTMLButtonElement
+  const btnPause = document.getElementById('toggle-pause') as HTMLButtonElement
 
-  if (btnAuto && btnSpawn && btnDeleteMode) {
+  if (btnAuto && btnSpawn && btnDeleteMode && btnPause) {
     const updateLabels = () => {
       updateButtonStates()
     }
@@ -38,6 +39,15 @@ export function setupUIControls(): void {
         import('./ui-panels.js').then(({ updateFinancialPanel }) => {
           updateFinancialPanel()
         })
+      }
+    }
+
+    // 暂停按钮事件处理
+    if (btnPause) {
+      btnPause.onclick = () => {
+        state.paused = !state.paused
+        updateLabels()
+        console.log(`游戏${state.paused ? '已暂停' : '已恢复'}`)
       }
     }
 
@@ -196,6 +206,7 @@ function updateButtonStates(): void {
   const spawnBtn = document.getElementById('spawn-one') as HTMLButtonElement
   const deleteBtn = document.getElementById('toggle-delete-mode') as HTMLButtonElement
   const infiniteBtn = document.getElementById('toggle-infinite-mode') as HTMLButtonElement
+  const pauseBtn = document.getElementById('toggle-pause') as HTMLButtonElement
 
 
   // 更新设置按钮
@@ -212,6 +223,11 @@ function updateButtonStates(): void {
   if (infiniteBtn) {
     infiniteBtn.textContent = `💰 无限模式: ${state.infiniteMode ? '开启' : '关闭'}`
     infiniteBtn.style.backgroundColor = state.infiniteMode ? '#FF6B35' : '#4CAF50'
+  }
+
+  if (pauseBtn) {
+    pauseBtn.textContent = `⏸️ 暂停游戏: ${state.paused ? '开启' : '关闭'}`
+    pauseBtn.style.backgroundColor = state.paused ? '#ff9800' : '#666'
   }
 
   if (spawnBtn) {

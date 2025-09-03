@@ -1,151 +1,225 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <title>Mini Metro (Web) — Infinite Mode</title>
-    <style>
-      html, body { height: 100%; margin: 0; padding: 0; background: #111; color: #eee; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overflow: hidden; }
-      #app { height: 100%; position: relative; }
-      canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
-      .overlay { position: fixed; left: 0; top: 0; padding: 8px 10px; font: 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto; opacity: 0.75; z-index: 100; }
-    </style>
-  </head>
-  <body>
-    <div id="app">
-      <canvas id="game"></canvas>
-      <div class="overlay" id="hud">Loading…</div>
 
-      <!-- 左侧线路管理面板 -->
-      <div class="overlay" style="left: 0; top: 0; text-align: left; max-width: 300px; max-height: 80vh; overflow-y: auto;">
-        <div style="background: rgba(0,0,0,0.3); padding:12px; border-radius:6px; border: 1px solid rgba(255,255,255,0.1); margin-bottom:8px;">
-          <div style="margin-bottom:8px;">
-            <strong style="font-size:14px; color:#f87171;">🛤️ 线路管理</strong>
-          </div>
-          <div id="lines-list" style="font-size:12px; max-height: calc(80vh - 80px); overflow-y: auto;"></div>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Mini Metro (Web) — Infinite Mode</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #111;
+      color: #eee;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      overflow: hidden;
+    }
+
+    #app {
+      height: 100%;
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .overlay {
+      position: fixed;
+      left: 0;
+      top: 0;
+      padding: 8px 10px;
+      font: 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto;
+      opacity: 0.75;
+      z-index: 100;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <canvas id="game"></canvas>
+    <div class="overlay" id="hud">Loading…</div>
+
+    <!-- 左侧线路管理面板 -->
+    <div class="overlay"
+      style="left: 0; top: 0; text-align: left; max-width: 280px; max-height: 80vh; overflow-y: auto;">
+      <div
+        style="background: rgba(0,0,0,0.3); padding:12px; border-radius:6px; border: 1px solid rgba(255,255,255,0.1); margin-bottom:8px;">
+        <div style="margin-bottom:8px;">
+          <strong style="font-size:14px; color:#f87171;">🛤️ 线路管理</strong>
         </div>
-      </div>
-
-      <div class="overlay" style="right: 0; left: auto; text-align: right; max-width: 240px;">
-
-        <!-- 设置面板 -->
-        <div style="margin-bottom:8px; background: rgba(0,0,0,0.3); padding:8px; border-radius:6px; border: 1px solid rgba(255,255,255,0.1);">
-          <div style="margin-bottom:6px;">
-            <strong style="font-size:13px; color:#4fc3f7;">⚙️ 设置</strong>
-          </div>
-
-          <div style="margin-bottom:6px;">
-            <div style="margin-bottom:4px;">
-              <span style="font-size:11px; color:#ccc;">游戏速度:</span>
-            </div>
-            <div style="display:flex; gap:2px;">
-              <button id="btn-speed-1x" style="font-size:11px; padding:4px 6px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;" title="1倍速">1x</button>
-              <button id="btn-speed-2x" style="font-size:11px; padding:4px 6px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;" title="2倍速">2x</button>
-              <button id="btn-speed-3x" style="font-size:11px; padding:4px 6px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;" title="3倍速">3x</button>
-            </div>
-          </div>
-
-          <div style="margin-bottom:6px;">
-            <div style="margin-bottom:4px;">
-              <span style="font-size:11px; color:#ccc;">乘客生成:</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:4px;">
-              <button id="passenger-rate-decrease" style="font-size:11px; width:20px; height:20px; padding:0; background:#666; color:#ccc; border:none; border-radius:2px; cursor:pointer;">➖</button>
-              <input type="range" id="passenger-rate" min="1" max="10" step="1" value="1" style="flex:1; height:4px;">
-              <button id="passenger-rate-increase" style="font-size:11px; width:20px; height:20px; padding:0; background:#666; color:#ccc; border:none; border-radius:2px; cursor:pointer;">➕</button>
-              <span id="passenger-rate-value" style="font-size:11px; color:#fff; min-width:12px;">1</span>
-            </div>
-          </div>
-
-          <div style="margin-bottom:6px;">
-            <button id="toggle-auto" style="font-size:11px; width:100%; padding:4px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;">自动生成: 关闭</button>
-          </div>
-
-          <div style="margin-bottom:6px;">
-            <button id="spawn-one" style="font-size:11px; width:100%; padding:4px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;">+ 添加站点</button>
-          </div>
-
-
-          <div style="margin-bottom:6px;">
-            <button id="toggle-delete-mode" style="font-size:11px; width:100%; padding:4px; background:#ff4757; color:#fff; border:none; border-radius:3px; cursor:pointer;">删除模式: 关闭</button>
-          </div>
-
-          <div style="margin-bottom:0;">
-            <button id="toggle-infinite-mode" style="font-size:11px; width:100%; padding:4px; background:#4CAF50; color:#fff; border:none; border-radius:3px; cursor:pointer;">💰 无限模式: 关闭</button>
-          </div>
-        </div>
-
-        <!-- 数据保存面板 -->
-        <div style="margin-bottom:8px; background: rgba(0,0,0,0.3); padding:8px; border-radius:6px; border: 1px solid rgba(255,255,255,0.1);">
-          <div style="margin-bottom:6px;">
-            <strong style="font-size:13px; color:#ff9800;">💾 数据管理</strong>
-          </div>
-
-          <div style="display:flex; gap:4px;">
-            <button id="btn-export-data" style="font-size:11px; flex:1; padding:4px; background:#2196F3; color:#fff; border:none; border-radius:3px; cursor:pointer;" title="导出游戏数据到文件">📤 导出数据</button>
-            <button id="btn-import-data" style="font-size:11px; flex:1; padding:4px; background:#FF9800; color:#fff; border:none; border-radius:3px; cursor:pointer;" title="从文件导入游戏数据">📥 导入数据</button>
-          </div>
-        </div>
-
-        <!-- 游戏信息面板 -->
-        <div style="margin-bottom:8px; background: rgba(0,0,0,0.3); padding:8px; border-radius:6px; border: 1px solid rgba(255,255,255,0.1);">
-          <div style="margin-bottom:6px;">
-            <strong style="font-size:13px; color:#81c784;">📊 游戏信息</strong>
-          </div>
-
-          <!-- 财务状况 -->
-          <div style="margin-bottom:8px; background: rgba(0,100,0,0.15); padding:6px; border-radius:4px; border: 1px solid rgba(0,255,0,0.2);">
-            <div style="margin-bottom:4px;">
-              <strong style="font-size:11px; color:#4ade80;">💰 财务状况</strong>
-            </div>
-            <div style="font-size:10px; color:#fff; line-height:1.4;">
-              <div>余额: $<span id="money-balance">500</span></div>
-              <div>总收入: $<span id="total-income">0</span></div>
-              <div>总支出: $<span id="total-expense">0</span></div>
-            </div>
-          </div>
-
-          <!-- 乘客统计 -->
-          <div style="margin-bottom:8px; background: rgba(100,100,255,0.15); padding:6px; border-radius:4px; border: 1px solid rgba(100,100,255,0.2);">
-            <div style="margin-bottom:4px;">
-              <strong style="font-size:11px; color:#60a5fa;">👥 乘客统计</strong>
-            </div>
-            <div style="font-size:10px; color:#fff; line-height:1.4;">
-              <div>已运送: <span id="total-passengers">0</span> 人</div>
-              <div>等待中: <span id="waiting-passengers">0</span> 人</div>
-            </div>
-          </div>
-
-          <!-- 游戏统计 -->
-          <div style="margin-bottom:0; background: rgba(255,100,100,0.15); padding:6px; border-radius:4px; border: 1px solid rgba(255,100,100,0.2);">
-            <div style="margin-bottom:4px;">
-              <strong style="font-size:11px; color:#f87171;">📈 游戏统计</strong>
-            </div>
-            <div style="font-size:10px; color:#fff; line-height:1.4;">
-              <div>游戏时间: <span id="game-time">0.0</span> 秒</div>
-              <div>站点数量: <span id="station-count">0</span> 个</div>
-              <div>列车数量: <span id="train-count">0</span> 辆</div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- 帮助提示 -->
-        <div style="background: rgba(0,0,0,0.2); padding:6px; border-radius:4px; border: 1px solid rgba(255,255,255,0.1);">
-          <div style="font-size:10px; opacity:0.8; line-height:1.3;">
-            <strong style="color:#fbbf24;">💡 操作提示:</strong><br>
-            • 点击站点连接线路<br>
-            • 拖拽线路可智能吸附<br>
-            • 右键或删除模式移除线路
-          </div>
-        </div>
-      </div>
-      <div id="link-chooser" style="position:absolute; background:rgba(0,0,0,0.9); color:white; padding:12px; border-radius:8px; z-index:1000; box-shadow:0 4px 12px rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); display:none; min-width:200px;">
-        <div id="link-chooser-text" style="margin-bottom:8px; font-size:14px">选择操作</div>
-        <div id="link-chooser-buttons" style="display:flex; flex-wrap:wrap; gap:8px"></div>
+        <div id="lines-list" style="font-size:12px; max-height: calc(80vh - 80px); overflow-y: auto;"></div>
       </div>
     </div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+
+    <div class="overlay" style="right: 0; left: auto; text-align: right; max-width: 280px;">
+
+      <!-- 设置面板 -->
+      <div
+        style="margin-bottom:8px; background: rgba(0,0,0,0.3); padding:8px; border-radius:6px; border: 1px solid rgba(255,255,255,0.1);">
+        <div style="margin-bottom:6px;">
+          <strong style="font-size:13px; color:#4fc3f7;">⚙️ 设置</strong>
+        </div>
+
+        <div style="margin-bottom:6px;">
+          <div style="margin-bottom:4px;">
+            <span style="font-size:11px; color:#ccc;">游戏速度:</span>
+          </div>
+          <div style="display:flex; gap:2px;">
+            <button id="btn-speed-1x"
+              style="font-size:11px; padding:4px 6px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;"
+              title="1倍速">1x</button>
+            <button id="btn-speed-2x"
+              style="font-size:11px; padding:4px 6px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;"
+              title="2倍速">2x</button>
+            <button id="btn-speed-3x"
+              style="font-size:11px; padding:4px 6px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;"
+              title="3倍速">3x</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom:6px;">
+          <button id="toggle-pause"
+            style="font-size:11px; width:100%; padding:4px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;">⏸️
+            暂停游戏: 关闭</button>
+        </div>
+
+        <div style="margin-bottom:6px;">
+          <div style="margin-bottom:4px;">
+            <span style="font-size:11px; color:#ccc;">乘客生成:</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:4px;">
+            <button id="passenger-rate-decrease"
+              style="font-size:11px; width:20px; height:20px; padding:0; background:#666; color:#ccc; border:none; border-radius:2px; cursor:pointer;">➖</button>
+            <input type="range" id="passenger-rate" min="1" max="10" step="1" value="1" style="flex:1; height:4px;">
+            <button id="passenger-rate-increase"
+              style="font-size:11px; width:20px; height:20px; padding:0; background:#666; color:#ccc; border:none; border-radius:2px; cursor:pointer;">➕</button>
+            <span id="passenger-rate-value" style="font-size:11px; color:#fff; min-width:12px;">1</span>
+          </div>
+        </div>
+
+        <div style="margin-bottom:6px;">
+          <button id="toggle-auto"
+            style="font-size:11px; width:100%; padding:4px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;">自动生成:
+            关闭</button>
+        </div>
+
+        <div style="margin-bottom:6px;">
+          <button id="spawn-one"
+            style="font-size:11px; width:100%; padding:4px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;">+
+            添加站点</button>
+        </div>
+
+
+        <div style="margin-bottom:6px;">
+          <button id="toggle-delete-mode"
+            style="font-size:11px; width:100%; padding:4px; background:#ff4757; color:#fff; border:none; border-radius:3px; cursor:pointer;">删除模式:
+            关闭</button>
+        </div>
+
+        <div style="margin-bottom:0;">
+          <button id="toggle-infinite-mode"
+            style="font-size:11px; width:100%; padding:4px; background:#4CAF50; color:#fff; border:none; border-radius:3px; cursor:pointer;">💰
+            无限模式: 关闭</button>
+        </div>
+      </div>
+
+      <!-- 数据保存面板 -->
+      <div
+        style="margin-bottom:8px; background: rgba(0,0,0,0.3); padding:8px; border-radius:6px; border: 1px solid rgba(255,255,255,0.1);">
+        <div style="margin-bottom:6px;">
+          <strong style="font-size:13px; color:#ff9800;">💾 数据管理</strong>
+        </div>
+
+        <div style="display:flex; gap:4px;">
+          <button id="btn-export-data"
+            style="font-size:11px; flex:1; padding:4px; background:#2196F3; color:#fff; border:none; border-radius:3px; cursor:pointer;"
+            title="导出游戏数据到文件">📤 导出数据</button>
+          <button id="btn-import-data"
+            style="font-size:11px; flex:1; padding:4px; background:#FF9800; color:#fff; border:none; border-radius:3px; cursor:pointer;"
+            title="从文件导入游戏数据">📥 导入数据</button>
+        </div>
+      </div>
+
+      <!-- 游戏信息面板 -->
+      <div
+        style="margin-bottom:8px; background: rgba(0,0,0,0.3); padding:8px; border-radius:6px; border: 1px solid rgba(255,255,255,0.1);">
+        <div style="margin-bottom:6px;">
+          <strong style="font-size:13px; color:#81c784;">📊 游戏信息</strong>
+        </div>
+
+        <!-- 财务状况 -->
+        <div
+          style="margin-bottom:8px; background: rgba(0,100,0,0.15); padding:6px; border-radius:4px; border: 1px solid rgba(0,255,0,0.2);">
+          <div style="margin-bottom:4px;">
+            <strong style="font-size:11px; color:#4ade80;">💰 财务状况</strong>
+          </div>
+          <div style="font-size:10px; color:#fff; line-height:1.4;">
+            <div>余额: $<span id="money-balance">500</span></div>
+            <div>总收入: $<span id="total-income">0</span></div>
+            <div>总支出: $<span id="total-expense">0</span></div>
+          </div>
+        </div>
+
+        <!-- 乘客统计 -->
+        <div
+          style="margin-bottom:8px; background: rgba(100,100,255,0.15); padding:6px; border-radius:4px; border: 1px solid rgba(100,100,255,0.2);">
+          <div style="margin-bottom:4px;">
+            <strong style="font-size:11px; color:#60a5fa;">👥 乘客统计</strong>
+          </div>
+          <div style="font-size:10px; color:#fff; line-height:1.4;">
+            <div>已运送: <span id="total-passengers">0</span> 人</div>
+            <div>等待中: <span id="waiting-passengers">0</span> 人</div>
+          </div>
+        </div>
+
+        <!-- 游戏统计 -->
+        <div
+          style="margin-bottom:0; background: rgba(255,100,100,0.15); padding:6px; border-radius:4px; border: 1px solid rgba(255,100,100,0.2);">
+          <div style="margin-bottom:4px;">
+            <strong style="font-size:11px; color:#f87171;">📈 游戏统计</strong>
+          </div>
+          <div style="font-size:10px; color:#fff; line-height:1.4;">
+            <div>游戏时间: <span id="game-time">0.0</span> 秒</div>
+            <div>站点数量: <span id="station-count">0</span> 个</div>
+            <div>列车数量: <span id="train-count">0</span> 辆</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 帮助提示 -->
+      <div
+        style="background: rgba(0,0,0,0.2); padding:6px; border-radius:4px; border: 1px solid rgba(255,255,255,0.1);">
+        <div style="font-size:10px; opacity:0.8; line-height:1.3;">
+          <strong style="color:#fbbf24;">💡 操作提示:</strong><br>
+          • 点击站点连接线路<br>
+          • 拖拽线路可智能吸附<br>
+          • 右键或删除模式移除线路
+        </div>
+      </div>
+    </div>
+    <div id="link-chooser"
+      style="position:absolute; background:rgba(0,0,0,0.9); color:white; padding:12px; border-radius:8px; z-index:1000; box-shadow:0 4px 12px rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); display:none; min-width:200px;">
+      <div id="link-chooser-text" style="margin-bottom:8px; font-size:14px">选择操作</div>
+      <div id="link-chooser-buttons" style="display:flex; flex-wrap:wrap; gap:8px"></div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
 </html>

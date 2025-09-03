@@ -587,5 +587,27 @@ export function render(ctx: CanvasRenderingContext2D, camera: Camera, canvas: HT
   // 绘制金钱变化效果
   drawMoneyEffects(ctx)
 
+  // 绘制暂停状态
+  if (state.paused) {
+    ctx.save()
+    ctx.setTransform(1, 0, 0, 1, 0, 0) // 重置变换，使用屏幕坐标
+
+    // 半透明黑色遮罩
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // 暂停文本
+    ctx.fillStyle = '#fff'
+    ctx.font = 'bold 48px system-ui'
+    ctx.textAlign = 'center'
+    ctx.fillText('游戏已暂停', canvas.width / 2, canvas.height / 2 - 20)
+
+    // 提示文本
+    ctx.font = '24px system-ui'
+    ctx.fillText('按空格键或P键恢复', canvas.width / 2, canvas.height / 2 + 30)
+
+    ctx.restore()
+  }
+
   ctx.restore()
 }

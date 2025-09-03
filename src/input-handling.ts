@@ -177,6 +177,18 @@ export function setupInput(canvas: HTMLCanvasElement, camera: Camera, showLinkCh
     camera.pos.x += worldBefore.x - worldAfter.x
     camera.pos.y += worldBefore.y - worldAfter.y
   }, { passive: false })
+
+  // 键盘事件处理
+  document.addEventListener('keydown', (e) => {
+    // 空格键或P键暂停/恢复游戏
+    if (e.code === 'Space' || e.code === 'KeyP') {
+      e.preventDefault()
+      import('./game-state.js').then(({ state }) => {
+        state.paused = !state.paused
+        console.log(`游戏${state.paused ? '已暂停' : '已恢复'}`)
+      })
+    }
+  })
 }
 
 

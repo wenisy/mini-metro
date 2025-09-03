@@ -1,5 +1,5 @@
 import type { Shape } from './types.js'
-import { state, zeroByShape, total, clamp, calculateDwellTime, addMoney, calculateTicketPrice } from './game-state.js'
+import { state, zeroByShape, total, clamp, calculateDwellTime, addMoney, calculateTicketPrice, updateLineStats } from './game-state.js'
 import { updateTrainVisualState } from './train-visual.js'
 
 // 获取游戏速度倍数
@@ -74,6 +74,8 @@ export function updateTrains(dt: number): void {
         // 添加收入
         if (totalIncome > 0) {
           addMoney(totalIncome, `运输${passengersToUnload}名${s.shape}乘客`, s.pos)
+          // 更新线路统计
+          updateLineStats(t.lineId, passengersToUnload, totalIncome)
         }
       }
 
