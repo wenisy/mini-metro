@@ -9,10 +9,10 @@ export const TRANSFER_STATION_EXTRA_DWELL = 0.4
 // 站点生成配置
 export const STATION_SPAWN_CONFIG = {
   minDistance: 100,        // 站点间最小距离（像素）
-  maxRetries: 30,          // 最大重试次数
+  maxRetries: 50,          // 最大重试次数（增加重试次数）
   spawnAreaMargin: 80,     // 生成区域边距
-  spawnAreaWidth: 440,     // 生成区域宽度
-  spawnAreaHeight: 640     // 生成区域高度
+  getSpawnAreaWidth: () => Math.max(800, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 200),   // 动态宽度
+  getSpawnAreaHeight: () => Math.max(600, (typeof window !== 'undefined' ? window.innerHeight : 800) - 200)  // 动态高度
 }
 
 // 经济系统配置
@@ -108,8 +108,8 @@ export function isPositionValidForStation(pos: Vec2, minDistance: number = STATI
 export function generateValidStationPosition(maxRetries: number = STATION_SPAWN_CONFIG.maxRetries): Vec2 | null {
   for (let tries = 0; tries < maxRetries; tries++) {
     const pos = {
-      x: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.spawnAreaWidth,
-      y: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.spawnAreaHeight
+      x: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.getSpawnAreaWidth(),
+      y: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.getSpawnAreaHeight()
     }
 
     if (isPositionValidForStation(pos)) {
