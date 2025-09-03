@@ -1,494 +1,5 @@
-import { state, removeLine, getExtendableLines, addLine, COLORS, economy, priceConfig, addTrain, upgradeTrainCapacity, canAfford, toggleInfiniteMode, addStationSafely, calculateNewLineCost, calculateExtensionCost, transactions, total, spendMoney } from './game-state.js'
+import { state, addTrain, upgradeTrainCapacity, priceConfig, canAfford, toggleInfiniteMode, addStationSafely, economy } from './game-state.js'
 import { enableSegmentDeletionMode, disableSegmentDeletionMode, segmentDeletion } from './smart-attachment.js'
-import type { Vec2 } from './types.js'
-
-// 线路折叠状态跟踪
-const lineCollapsedState = new Map<number, boolean>()
-
-// let nextId = 1000 // 避免与游戏状态中的ID冲突 - 暂时注释掉未使用的变量
-
-// 更新财务面板和乘客统计
-export function updateFinancialPanel(): void {
-  const balanceElement = document.getElementById('money-balance')
-  const incomeElement = document.getElementById('total-income')
-  const expenseElement = document.getElementById('total-expense')
-
-  if (balanceElement) {
-    if (state.infiniteMode) {
-      balanceElement.textContent = '∞ (无限模式)'
-      balanceElement.style.color = '#00ff88'
-      balanceElement.style.fontWeight = 'bold'
-    } else {
-      balanceElement.textContent = economy.balance.toString()
-      balanceElement.style.color = ''
-      balanceElement.style.fontWeight = ''
-    }
-  }
-  if (incomeElement) incomeElement.textContent = economy.totalIncome.toString()
-  if (expenseElement) expenseElement.textContent = economy.totalExpense.toString()
-
-  // 更新乘客统计
-  updatePassengerStats()
-
-  // 更新按钮价格显示
-  const trainCostElement = document.getElementById('train-cost')
-  const capacityCostElement = document.getElementById('capacity-cost')
-
-  if (trainCostElement) trainCostElement.textContent = priceConfig.newTrainCost.toString()
-  if (capacityCostElement) {
-    const currentLineTrains = state.currentLineId ? state.trains.filter(t => t.lineId === state.currentLineId).length : 0
-    const totalCost = priceConfig.trainCapacityUpgradeCost * Math.max(1, currentLineTrains)
-    capacityCostElement.textContent = totalCost.toString()
-  }
-
-  // 更新按钮状态（启用/禁用）
-  updateButtonStates()
-}
-
-// 更新乘客统计
-function updatePassengerStats(): void {
-  const totalPassengersElement = document.getElementById('total-passengers')
-  const waitingPassengersElement = document.getElementById('waiting-passengers')
-
-  if (totalPassengersElement) {
-    // 计算已运送的总乘客数（从交易记录中获取）
-    const totalTransported = transactions
-      .filter(t => t.type === 'income' && t.description.includes('运输'))
-      .reduce((sum, t) => sum + (t.amount / 25), 0) // 假设平均票价25来估算乘客数
-    totalPassengersElement.textContent = Math.floor(totalTransported).toString()
-  }
-
-  if (waitingPassengersElement) {
-    // 计算等待中的乘客总数
-    const waitingPassengers = state.stations.reduce((sum, station) => sum + total(station.queueBy), 0)
-    waitingPassengersElement.textContent = waitingPassengers.toString()
-  }
-}
-
-// 更新游戏统计
-export function updateGameStats(): void {
-  const gameTimeElement = document.getElementById('game-time')
-  const stationCountElement = document.getElementById('station-count')
-  const trainCountElement = document.getElementById('train-count')
-
-  if (gameTimeElement) {
-    gameTimeElement.textContent = Math.floor(state.time).toString()
-  }
-
-  if (stationCountElement) {
-    stationCountElement.textContent = state.stations.length.toString()
-  }
-
-  if (trainCountElement) {
-    trainCountElement.textContent = state.trains.length.toString()
-  }
-}
-
-function updateButtonStates(): void {
-  const addTrainBtn = document.getElementById('btn-add-train') as HTMLButtonElement
-  const capacityBtn = document.getElementById('btn-capacity') as HTMLButtonElement
-  const autoBtn = document.getElementById('toggle-auto') as HTMLButtonElement
-  const spawnBtn = document.getElementById('spawn-one') as HTMLButtonElement
-  const deleteBtn = document.getElementById('toggle-delete-mode') as HTMLButtonElement
-  const infiniteBtn = document.getElementById('toggle-infinite-mode') as HTMLButtonElement
-
-  // 更新列车相关按钮
-  if (addTrainBtn) {
-    const canAffordTrain = canAfford(priceConfig.newTrainCost) && state.currentLineId !== null
-    addTrainBtn.disabled = !canAffordTrain
-    addTrainBtn.style.opacity = canAffordTrain ? '1' : '0.5'
-    addTrainBtn.style.cursor = canAffordTrain ? 'pointer' : 'not-allowed'
-    addTrainBtn.style.backgroundColor = canAffordTrain ? '#666' : '#444'
-  }
-
-  if (capacityBtn) {
-    const currentLineTrains = state.currentLineId ? state.trains.filter(t => t.lineId === state.currentLineId).length : 0
-    const totalCost = priceConfig.trainCapacityUpgradeCost * Math.max(1, currentLineTrains)
-    const canAffordCapacity = canAfford(totalCost) && state.currentLineId !== null
-    capacityBtn.disabled = !canAffordCapacity
-    capacityBtn.style.opacity = canAffordCapacity ? '1' : '0.5'
-    capacityBtn.style.cursor = canAffordCapacity ? 'pointer' : 'not-allowed'
-    capacityBtn.style.backgroundColor = canAffordCapacity ? '#666' : '#444'
-  }
-
-  // 更新设置按钮
-  if (autoBtn) {
-    autoBtn.textContent = `自动生成: ${state.autoSpawnEnabled ? '开启' : '关闭'}`
-    autoBtn.style.backgroundColor = state.autoSpawnEnabled ? '#4CAF50' : '#666'
-  }
-
-
-  if (deleteBtn) {
-    deleteBtn.textContent = `删除模式: ${segmentDeletion.deleteMode ? '开启' : '关闭'}`
-    deleteBtn.style.backgroundColor = segmentDeletion.deleteMode ? '#ff4757' : '#666'
-  }
-
-  if (infiniteBtn) {
-    infiniteBtn.textContent = `💰 无限模式: ${state.infiniteMode ? '开启' : '关闭'}`
-    infiniteBtn.style.backgroundColor = state.infiniteMode ? '#FF6B35' : '#4CAF50'
-  }
-
-  if (spawnBtn) {
-    spawnBtn.style.backgroundColor = '#666'
-  }
-}
-
-// 计算菜单位置（固定在屏幕中心）
-function calculateMenuPosition(fromPos: Vec2, toPos: Vec2, camera: any): { x: number, y: number } {
-  // 菜单尺寸估算
-  const menuWidth = 240
-  const menuHeight = 140
-
-  // 获取视口尺寸
-  const viewportWidth = window.innerWidth
-  const viewportHeight = window.innerHeight
-
-  // 计算屏幕中心位置
-  const centerX = viewportWidth / 2 - menuWidth / 2
-  const centerY = viewportHeight / 2 - menuHeight / 2
-
-  // 确保菜单完全在视口内
-  const x = Math.max(10, Math.min(centerX, viewportWidth - menuWidth - 10))
-  const y = Math.max(10, Math.min(centerY, viewportHeight - menuHeight - 10))
-
-  // 使用参数避免TypeScript警告（虽然实际不需要使用）
-  void fromPos;
-  void toPos;
-  void camera;
-
-  console.log(`菜单定位: 屏幕中心 (${x.toFixed(1)}, ${y.toFixed(1)})`)
-  return { x, y }
-}
-
-// 渲染线路面板
-export function renderLinesPanel(): void {
-  console.log('renderLinesPanel 被调用，当前线路数量:', state.lines.length)
-  const linesList = document.getElementById('lines-list') as HTMLDivElement
-  if (!linesList) {
-    console.log('linesList 元素未找到')
-    return
-  }
-
-  if (state.lines.length === 0) {
-    linesList.innerHTML = '<div style="font-size:14px; color:#888; text-align:center; padding:12px;">暂无线路</div>'
-    return
-  }
-
-  const html = state.lines.map(l => {
-    const lineTrains = state.trains.filter(t => t.lineId === l.id)
-    const trainCount = lineTrains.length
-    const isSelected = state.currentLineId === l.id
-    const isCollapsed = lineCollapsedState.get(l.id) ?? false // 默认展开
-
-    // 线路头部
-    let lineHtml = `<div style="margin:4px 0;border-radius:4px;border:1px solid ${l.color};background:${isSelected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)'};">
-      <div style="display:flex;align-items:center;gap:4px;padding:8px;background:${isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'};border-radius:3px 3px 0 0;border-bottom:1px solid rgba(255,255,255,0.1);">
-        <button data-line-collapse="${l.id}" class="line-collapse" style="font-size:12px;width:20px;height:20px;padding:0;background:none;border:none;color:#ccc;cursor:pointer;border-radius:2px;margin-right:4px;" title="${isCollapsed ? '展开' : '折叠'}">${isCollapsed ? '▶' : '▼'}</button>
-        <button data-line="${l.id}" class="line-select" style="font-size:14px;flex:1;text-align:left;background:none;border:none;color:#fff;cursor:pointer;padding:0;font-weight:bold;" title="选择线路">${l.name}</button>
-        <span style="font-size:12px;color:#ccc;">${trainCount}辆列车</span>
-        <button data-line-add-train="${l.id}" class="line-add-train" style="font-size:12px;color:#4CAF50;border:1px solid #4CAF50;background:none;cursor:pointer;padding:3px 8px;border-radius:3px;" title="添加列车">+</button>
-        <button data-line-delete="${l.id}" class="line-delete" style="font-size:12px;color:#ff6b6b;border:1px solid #ff6b6b;background:none;cursor:pointer;padding:3px 8px;border-radius:3px;" title="删除线路">×</button>
-      </div>`
-
-    // 列车详情
-    if (!isCollapsed) {
-      if (trainCount > 0) {
-        lineHtml += '<div style="padding:6px;">'
-        lineTrains.forEach((train, index) => {
-          const currentPassengers = total(train.passengersBy)
-          const capacity = train.capacity
-          const loadRatio = currentPassengers / capacity
-          const statusColor = loadRatio > 0.8 ? '#ff6b6b' : loadRatio > 0.5 ? '#ffa726' : '#66bb6a'
-
-          lineHtml += `<div style="display:flex;align-items:center;gap:8px;margin:3px 0;padding:4px;background:rgba(255,255,255,0.05);border-radius:3px;">
-            <span style="font-size:12px;color:#ccc;min-width:25px;font-weight:bold;">#${index + 1}</span>
-            <span style="font-size:12px;color:${statusColor};font-weight:bold;min-width:35px;">${currentPassengers}/${capacity}</span>
-            <div style="flex:1;height:6px;background:rgba(255,255,255,0.2);border-radius:3px;">
-              <div style="height:100%;width:${Math.min(loadRatio * 100, 100)}%;background:${statusColor};border-radius:3px;"></div>
-            </div>
-            <button data-train-upgrade="${train.id}" class="train-upgrade" style="font-size:10px;color:#2196F3;border:1px solid #2196F3;background:none;cursor:pointer;padding:2px 6px;border-radius:3px;" title="增加载客量">+载客</button>
-          </div>`
-        })
-        lineHtml += '</div>'
-      } else {
-        lineHtml += '<div style="padding:10px;text-align:center;font-size:12px;color:#666;">暂无列车</div>'
-      }
-    }
-
-    lineHtml += '</div>'
-    return lineHtml
-  }).join('')
-
-  console.log('生成的HTML:', html)
-  linesList.innerHTML = html
-
-  // 添加线路选择事件监听器
-  linesList.querySelectorAll('button.line-select').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = Number((btn as HTMLButtonElement).dataset.line)
-      state.currentLineId = id
-      console.log('选中线路:', id)
-      renderLinesPanel() // 重新渲染以显示选择状态
-      updateFinancialPanel() // 更新按钮状态
-    })
-  })
-
-  // 添加列车按钮事件监听器
-  linesList.querySelectorAll('button.line-add-train').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const lineId = Number((btn as HTMLButtonElement).dataset.lineAddTrain)
-      if (addTrain(lineId)) {
-        console.log(`成功为线路 ${lineId} 添加列车`)
-        renderLinesPanel()
-        updateFinancialPanel()
-      } else {
-        alert(`余额不足！需要 $${priceConfig.newTrainCost}，当前余额 $${economy.balance}`)
-      }
-    })
-  })
-
-  // 添加列车升级按钮事件监听器
-  linesList.querySelectorAll('button.train-upgrade').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const trainId = Number((btn as HTMLButtonElement).dataset.trainUpgrade)
-      const train = state.trains.find(t => t.id === trainId)
-      if (train) {
-        // 为单个列车升级容量
-        const cost = priceConfig.trainCapacityUpgradeCost
-        if (canAfford(cost)) {
-          spendMoney(cost, `升级列车容量`)
-          train.capacity += 1
-          console.log(`列车 ${trainId} 容量升级为 ${train.capacity}`)
-          renderLinesPanel()
-          updateFinancialPanel()
-        } else {
-          alert(`余额不足！需要 $${cost}，当前余额 $${economy.balance}`)
-        }
-      }
-    })
-  })
-
-  // 添加折叠/展开按钮事件监听器
-  linesList.querySelectorAll('button.line-collapse').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const lineId = Number((btn as HTMLButtonElement).dataset.lineCollapse)
-      const currentState = lineCollapsedState.get(lineId) ?? false
-      lineCollapsedState.set(lineId, !currentState)
-      renderLinesPanel() // 重新渲染以更新显示状态
-    })
-  })
-
-  // 添加删除按钮事件监听器
-  linesList.querySelectorAll('button.line-delete').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = Number((btn as HTMLButtonElement).dataset.lineDelete)
-      if (confirm(`确定要删除 ${state.lines.find(l => l.id === id)?.name} 吗？`)) {
-        removeLine(id)
-        // 清理折叠状态
-        lineCollapsedState.delete(id)
-        renderLinesPanel()
-        updateFinancialPanel()
-      }
-    })
-  })
-  console.log('renderLinesPanel 完成')
-}
-
-// 显示连接选择器
-export function showLinkChooser(from: any, to: any, camera?: any): void {
-  // 动态导入以避免循环依赖
-  import('./game-state.js').then(({ findLineBetween }) => {
-    const existing = findLineBetween(from.id, to.id)
-
-    if (existing) {
-      // 已存在连接，显示删除选项
-      showLinkChooserUI(from, to, existing, [], camera)
-    } else {
-      // 检查可用操作
-      const extendableLines = getExtendableLines(from, to)
-
-      if (extendableLines.length === 0) {
-        // 只能新建线路，检查余额后直接执行
-        const newLineCost = calculateNewLineCost()
-        if (canAfford(newLineCost)) {
-          const color = COLORS[(state.lines.length) % COLORS.length]
-          const newLine = addLine(color, from, to)
-          if (newLine) {
-            state.currentLineId = newLine.id
-            renderLinesPanel()
-            updateFinancialPanel()
-            console.log(`自动创建新线路: ${newLine.name}`)
-          }
-        } else {
-          alert(`余额不足！建设新线路需要 $${newLineCost}，当前余额 $${economy.balance}`)
-        }
-      } else {
-        // 有多个选项，显示选择界面
-        showLinkChooserUI(from, to, null, extendableLines, camera)
-      }
-    }
-  })
-}
-
-// 显示连接选择器UI
-function showLinkChooserUI(from: any, to: any, existing: any = null, extendableLines: any[] = [], camera?: any): void {
-  state.showLinkChooser = true
-  state.linkChooserFrom = from
-  state.linkChooserTo = to
-
-  const chooser = document.getElementById('link-chooser') as HTMLDivElement
-  const text = document.getElementById('link-chooser-text') as HTMLDivElement
-  const buttons = document.getElementById('link-chooser-buttons') as HTMLDivElement
-
-  if (!chooser || !text || !buttons) return
-
-  // 动态定位菜单（基于两个站点的中点）
-  if (camera) {
-    const position = calculateMenuPosition(from.pos, to.pos, camera)
-    chooser.style.left = `${position.x}px`
-    chooser.style.top = `${position.y}px`
-    chooser.style.transform = 'none' // 清除任何之前的transform
-  } else {
-    // 回退到默认位置
-    chooser.style.left = '50%'
-    chooser.style.top = 'auto'
-    chooser.style.bottom = '20px'
-    chooser.style.transform = 'translateX(-50%)'
-  }
-
-  if (existing) {
-    text.textContent = `${from.shape} ↔ ${to.shape} 已连接`
-    buttons.innerHTML = `<button id="remove-line">删除连接</button>`
-  } else {
-    text.textContent = `连接 ${from.shape} → ${to.shape}`
-    let html = ''
-
-    // 添加可扩展线路选项
-    if (extendableLines.length > 0) {
-      const extensionCost = calculateExtensionCost()
-      extendableLines.forEach(line => {
-        html += `<button class="extend-line" data-line-id="${line.id}" style="display:flex;align-items:center;gap:6px;padding:6px 8px;">
-          <span style="display:inline-block;width:12px;height:12px;background:${line.color};border-radius:50%;border:1px solid rgba(255,255,255,0.3);"></span>
-          <span>延长 ${line.name} ($${extensionCost})</span>
-        </button>`
-      })
-    }
-
-    const newLineCost = calculateNewLineCost()
-    html += `<button id="new-line">新建线路 ($${newLineCost})</button>`
-    html += `<button id="cancel-action">取消</button>`
-    buttons.innerHTML = html
-  }
-
-  chooser.style.display = 'block'
-
-  // 添加事件监听器
-  const removeBtn = document.getElementById('remove-line')
-  const newBtn = document.getElementById('new-line')
-  const cancelBtn = document.getElementById('cancel-action')
-  const extendBtns = document.querySelectorAll('.extend-line')
-
-  if (removeBtn) {
-    removeBtn.onclick = () => {
-      if (existing) removeLine(existing.id)
-      hideLinkChooser()
-      renderLinesPanel()
-    }
-  }
-
-  // 处理扩展线路按钮
-  extendBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const lineId = Number((btn as HTMLButtonElement).dataset.lineId)
-      const line = state.lines.find(l => l.id === lineId)
-      if (line) {
-        // 检查余额
-        import('./game-state.js').then(({ extendLine }) => {
-          const midPoint = {
-            x: (from.pos.x + to.pos.x) / 2,
-            y: (from.pos.y + to.pos.y) / 2
-          }
-
-          if (extendLine(line, 0, midPoint)) { // 使用0作为占位符，实际逻辑在extendLine中
-            // 确定要添加哪个站点以及添加到哪里
-            const fromOnLine = line.stations.includes(from.id)
-            const toOnLine = line.stations.includes(to.id)
-
-            if (fromOnLine && !toOnLine) {
-              // 添加 'to' 站点到线路
-              const fromIndex = line.stations.indexOf(from.id)
-              if (fromIndex === 0) {
-                // 在线路开头添加
-                line.stations.unshift(to.id)
-              } else if (fromIndex === line.stations.length - 1) {
-                // 在线路末尾添加
-                line.stations.push(to.id)
-              } else {
-                // 从中间站点扩展：创建分支线路
-                // 为了简化，我们在当前站点后插入新站点
-                line.stations.splice(fromIndex + 1, 0, to.id)
-              }
-            } else if (toOnLine && !fromOnLine) {
-              // 添加 'from' 站点到线路
-              const toIndex = line.stations.indexOf(to.id)
-              if (toIndex === 0) {
-                // 在线路开头添加
-                line.stations.unshift(from.id)
-              } else if (toIndex === line.stations.length - 1) {
-                // 在线路末尾添加
-                line.stations.push(from.id)
-              } else {
-                // 从中间站点扩展：创建分支线路
-                // 为了简化，我们在当前站点后插入新站点
-                line.stations.splice(toIndex + 1, 0, from.id)
-              }
-            }
-            state.currentLineId = lineId // 设置为当前线路
-            renderLinesPanel()
-            updateFinancialPanel()
-          } else {
-            const extensionCost = calculateExtensionCost()
-            alert(`余额不足！延长线路需要 $${extensionCost}，当前余额 $${economy.balance}`)
-          }
-        })
-      }
-      hideLinkChooser()
-    })
-  })
-
-  if (newBtn) {
-    newBtn.onclick = () => {
-      const newLineCost = calculateNewLineCost()
-      if (canAfford(newLineCost)) {
-        const color = COLORS[(state.lines.length) % COLORS.length]
-        const newLine = addLine(color, from, to)
-        if (newLine) {
-          state.currentLineId = newLine.id
-          renderLinesPanel()
-          updateFinancialPanel()
-        }
-      } else {
-        alert(`余额不足！建设新线路需要 $${newLineCost}，当前余额 $${economy.balance}`)
-      }
-      hideLinkChooser()
-    }
-  }
-
-  if (cancelBtn) {
-    cancelBtn.onclick = () => {
-      hideLinkChooser()
-    }
-  }
-}
-
-// 隐藏连接选择器
-export function hideLinkChooser(): void {
-  state.showLinkChooser = false
-  state.linkChooserFrom = null
-  state.linkChooserTo = null
-  const chooser = document.getElementById('link-chooser') as HTMLDivElement
-  if (chooser) chooser.style.display = 'none'
-}
 
 // 设置UI控件
 export function setupUIControls(): void {
@@ -508,7 +19,6 @@ export function setupUIControls(): void {
       updateLabels()
     }
 
-
     btnDeleteMode.onclick = () => {
       if (segmentDeletion.deleteMode) {
         disableSegmentDeletionMode()
@@ -523,7 +33,10 @@ export function setupUIControls(): void {
       btnInfiniteMode.onclick = () => {
         toggleInfiniteMode()
         updateLabels()
-        updateFinancialPanel() // 立即更新财务面板显示
+        // 导入updateFinancialPanel以避免循环依赖
+        import('./ui-panels.js').then(({ updateFinancialPanel }) => {
+          updateFinancialPanel()
+        })
       }
     }
 
@@ -601,7 +114,10 @@ export function setupUIControls(): void {
       }
 
       if (addTrain(state.currentLineId)) {
-        updateFinancialPanel()
+        // 导入updateFinancialPanel以避免循环依赖
+        import('./ui-panels.js').then(({ updateFinancialPanel }) => {
+          updateFinancialPanel()
+        })
         console.log('成功添加列车')
       } else {
         alert(`余额不足！需要 $${priceConfig.newTrainCost}，当前余额 $${economy.balance}`)
@@ -617,7 +133,10 @@ export function setupUIControls(): void {
       }
 
       if (upgradeTrainCapacity(state.currentLineId)) {
-        updateFinancialPanel()
+        // 导入updateFinancialPanel以避免循环依赖
+        import('./ui-panels.js').then(({ updateFinancialPanel }) => {
+          updateFinancialPanel()
+        })
         console.log('成功升级列车容量')
       } else {
         const currentLineTrains = state.trains.filter(t => t.lineId === state.currentLineId).length
@@ -671,5 +190,56 @@ export function setupUIControls(): void {
   updateSpeedButtons()
 
   // 初始化财务面板
-  updateFinancialPanel()
+  import('./ui-panels.js').then(({ updateFinancialPanel }) => {
+    updateFinancialPanel()
+  })
+}
+
+// 按钮状态更新函数
+function updateButtonStates(): void {
+  const addTrainBtn = document.getElementById('btn-add-train') as HTMLButtonElement
+  const capacityBtn = document.getElementById('btn-capacity') as HTMLButtonElement
+  const autoBtn = document.getElementById('toggle-auto') as HTMLButtonElement
+  const spawnBtn = document.getElementById('spawn-one') as HTMLButtonElement
+  const deleteBtn = document.getElementById('toggle-delete-mode') as HTMLButtonElement
+  const infiniteBtn = document.getElementById('toggle-infinite-mode') as HTMLButtonElement
+
+  // 更新列车相关按钮
+  if (addTrainBtn) {
+    const canAffordTrain = canAfford(priceConfig.newTrainCost) && state.currentLineId !== null
+    addTrainBtn.disabled = !canAffordTrain
+    addTrainBtn.style.opacity = canAffordTrain ? '1' : '0.5'
+    addTrainBtn.style.cursor = canAffordTrain ? 'pointer' : 'not-allowed'
+    addTrainBtn.style.backgroundColor = canAffordTrain ? '#666' : '#444'
+  }
+
+  if (capacityBtn) {
+    const currentLineTrains = state.currentLineId ? state.trains.filter(t => t.lineId === state.currentLineId).length : 0
+    const totalCost = priceConfig.trainCapacityUpgradeCost * Math.max(1, currentLineTrains)
+    const canAffordCapacity = canAfford(totalCost) && state.currentLineId !== null
+    capacityBtn.disabled = !canAffordCapacity
+    capacityBtn.style.opacity = canAffordCapacity ? '1' : '0.5'
+    capacityBtn.style.cursor = canAffordCapacity ? 'pointer' : 'not-allowed'
+    capacityBtn.style.backgroundColor = canAffordCapacity ? '#666' : '#444'
+  }
+
+  // 更新设置按钮
+  if (autoBtn) {
+    autoBtn.textContent = `自动生成: ${state.autoSpawnEnabled ? '开启' : '关闭'}`
+    autoBtn.style.backgroundColor = state.autoSpawnEnabled ? '#4CAF50' : '#666'
+  }
+
+  if (deleteBtn) {
+    deleteBtn.textContent = `删除模式: ${segmentDeletion.deleteMode ? '开启' : '关闭'}`
+    deleteBtn.style.backgroundColor = segmentDeletion.deleteMode ? '#ff4757' : '#666'
+  }
+
+  if (infiniteBtn) {
+    infiniteBtn.textContent = `💰 无限模式: ${state.infiniteMode ? '开启' : '关闭'}`
+    infiniteBtn.style.backgroundColor = state.infiniteMode ? '#FF6B35' : '#4CAF50'
+  }
+
+  if (spawnBtn) {
+    spawnBtn.style.backgroundColor = '#666'
+  }
 }

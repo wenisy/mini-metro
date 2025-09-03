@@ -55,7 +55,7 @@ export function setupInput(canvas: HTMLCanvasElement, camera: Camera, showLinkCh
           // 删除模式：尝试删除线路段
           if (attemptSegmentDeletion(world)) {
             // 删除成功，重新渲染UI
-            import('./ui-controls.js').then(({ renderLinesPanel }) => {
+            import('./ui-lines.js').then(({ renderLinesPanel }) => {
               renderLinesPanel()
             })
           }

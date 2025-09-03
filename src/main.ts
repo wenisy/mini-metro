@@ -6,7 +6,10 @@ import { Camera, render, updateMoneyEffects } from './rendering.js'
 import { setupInput, interaction } from './input-handling.js'
 import { updateAnimations } from './smart-attachment.js'
 import { updateTrains, maybeSpawnStations, spawnPassengers } from './train-logic.js'
-import { setupUIControls, renderLinesPanel, showLinkChooser, hideLinkChooser, updateFinancialPanel, updateGameStats } from './ui-controls.js'
+import { setupUIControls } from './ui-controls.js'
+import { renderLinesPanel } from './ui-lines.js'
+import { showLinkChooser, hideLinkChooser } from './ui-connection.js'
+import { updateFinancialPanel, updateGameStats } from './ui-panels.js'
 
 // 基础游戏引导：DPR感知画布，固定时间步长循环，指针输入
 
