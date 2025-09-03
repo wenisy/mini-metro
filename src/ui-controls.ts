@@ -172,7 +172,7 @@ export function renderLinesPanel(): void {
   }
 
   if (state.lines.length === 0) {
-    linesList.innerHTML = '<div style="font-size:10px; color:#888; text-align:center; padding:8px;">暂无线路</div>'
+    linesList.innerHTML = '<div style="font-size:14px; color:#888; text-align:center; padding:12px;">暂无线路</div>'
     return
   }
 
@@ -183,34 +183,34 @@ export function renderLinesPanel(): void {
 
     // 线路头部
     let lineHtml = `<div style="margin:4px 0;border-radius:4px;border:1px solid ${l.color};background:${isSelected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)'};">
-      <div style="display:flex;align-items:center;gap:4px;padding:6px;background:${isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'};border-radius:3px 3px 0 0;border-bottom:1px solid rgba(255,255,255,0.1);">
-        <button data-line="${l.id}" class="line-select" style="font-size:11px;flex:1;text-align:left;background:none;border:none;color:#fff;cursor:pointer;padding:0;font-weight:bold;" title="选择线路">${l.name}</button>
-        <span style="font-size:9px;color:#ccc;">${trainCount}辆列车</span>
-        <button data-line-add-train="${l.id}" class="line-add-train" style="font-size:10px;color:#4CAF50;border:1px solid #4CAF50;background:none;cursor:pointer;padding:2px 6px;border-radius:3px;" title="添加列车">+</button>
-        <button data-line-delete="${l.id}" class="line-delete" style="font-size:10px;color:#ff6b6b;border:1px solid #ff6b6b;background:none;cursor:pointer;padding:2px 6px;border-radius:3px;" title="删除线路">×</button>
+      <div style="display:flex;align-items:center;gap:4px;padding:8px;background:${isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'};border-radius:3px 3px 0 0;border-bottom:1px solid rgba(255,255,255,0.1);">
+        <button data-line="${l.id}" class="line-select" style="font-size:14px;flex:1;text-align:left;background:none;border:none;color:#fff;cursor:pointer;padding:0;font-weight:bold;" title="选择线路">${l.name}</button>
+        <span style="font-size:12px;color:#ccc;">${trainCount}辆列车</span>
+        <button data-line-add-train="${l.id}" class="line-add-train" style="font-size:12px;color:#4CAF50;border:1px solid #4CAF50;background:none;cursor:pointer;padding:3px 8px;border-radius:3px;" title="添加列车">+</button>
+        <button data-line-delete="${l.id}" class="line-delete" style="font-size:12px;color:#ff6b6b;border:1px solid #ff6b6b;background:none;cursor:pointer;padding:3px 8px;border-radius:3px;" title="删除线路">×</button>
       </div>`
 
     // 列车详情
     if (trainCount > 0) {
-      lineHtml += '<div style="padding:4px;">'
+      lineHtml += '<div style="padding:6px;">'
       lineTrains.forEach((train, index) => {
         const currentPassengers = total(train.passengersBy)
         const capacity = train.capacity
         const loadRatio = currentPassengers / capacity
         const statusColor = loadRatio > 0.8 ? '#ff6b6b' : loadRatio > 0.5 ? '#ffa726' : '#66bb6a'
 
-        lineHtml += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;padding:3px;background:rgba(255,255,255,0.05);border-radius:2px;">
-          <span style="font-size:9px;color:#ccc;min-width:20px;">#${index + 1}</span>
-          <span style="font-size:9px;color:${statusColor};font-weight:bold;">${currentPassengers}/${capacity}</span>
-          <div style="flex:1;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;">
-            <div style="height:100%;width:${Math.min(loadRatio * 100, 100)}%;background:${statusColor};border-radius:2px;"></div>
+        lineHtml += `<div style="display:flex;align-items:center;gap:8px;margin:3px 0;padding:4px;background:rgba(255,255,255,0.05);border-radius:3px;">
+          <span style="font-size:12px;color:#ccc;min-width:25px;font-weight:bold;">#${index + 1}</span>
+          <span style="font-size:12px;color:${statusColor};font-weight:bold;min-width:35px;">${currentPassengers}/${capacity}</span>
+          <div style="flex:1;height:6px;background:rgba(255,255,255,0.2);border-radius:3px;">
+            <div style="height:100%;width:${Math.min(loadRatio * 100, 100)}%;background:${statusColor};border-radius:3px;"></div>
           </div>
-          <button data-train-upgrade="${train.id}" class="train-upgrade" style="font-size:8px;color:#2196F3;border:1px solid #2196F3;background:none;cursor:pointer;padding:1px 4px;border-radius:2px;" title="增加载客量">+载客</button>
+          <button data-train-upgrade="${train.id}" class="train-upgrade" style="font-size:10px;color:#2196F3;border:1px solid #2196F3;background:none;cursor:pointer;padding:2px 6px;border-radius:3px;" title="增加载客量">+载客</button>
         </div>`
       })
       lineHtml += '</div>'
     } else {
-      lineHtml += '<div style="padding:8px;text-align:center;font-size:9px;color:#666;">暂无列车</div>'
+      lineHtml += '<div style="padding:10px;text-align:center;font-size:12px;color:#666;">暂无列车</div>'
     }
 
     lineHtml += '</div>'
