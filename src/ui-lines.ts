@@ -17,7 +17,18 @@ export function renderLinesPanel(): void {
     return
   }
 
-  const html = state.lines.map(l => {
+  // 按照线路名称排序（提取数字部分进行排序）
+  const sortedLines = state.lines.slice().sort((a, b) => {
+    const aMatch = a.name.match(/(\d+)/)
+    const bMatch = b.name.match(/(\d+)/)
+
+    const aNum = aMatch ? parseInt(aMatch[1]) : 0
+    const bNum = bMatch ? parseInt(bMatch[1]) : 0
+
+    return aNum - bNum
+  })
+
+  const html = sortedLines.map(l => {
     const lineTrains = state.trains.filter(t => t.lineId === l.id)
     const trainCount = lineTrains.length
     const isSelected = state.currentLineId === l.id
