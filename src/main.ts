@@ -151,6 +151,8 @@ function spawnInitialWorld() {
   // create initial line (1号线)
   const firstLine = addLine(COLORS[0], s1, s2, '1号线')
   state.currentLineId = firstLine.id
+  // Ensure next line will be 2号线
+  state.nextLineNum = 2
 }
 function showLinkChooser(from: Station, to: Station) {
   state.showLinkChooser = true
@@ -714,6 +716,54 @@ function main() {
       addStation(pos, shapes[Math.floor(Math.random()*3)])
     }
     updateLabels()
+  }
+
+  // HUD actions: +Train / Capacity +1 / Lines list and New Line
+  const btnAddTrain = document.getElementById('btn-add-train') as HTMLButtonElement
+  const btnCap = document.getElementById('btn-capacity') as HTMLButtonElement
+  const btnNewLine = document.getElementById('btn-new-line') as HTMLButtonElement
+
+  if (btnAddTrain) {
+    btnAddTrain.onclick = () => {
+      if (state.currentLineId == null) return
+      state.trains.push({
+        id: nextId++,
+        lineId: state.currentLineId,
+        atIndex: 0,
+        t: 0,
+        dir: 1,
+        capacity: 6,
+        passengersBy: zeroByShape(),
+        passengersTo: {},
+        dwell: 0
+      })
+    }
+  }
+
+  if (btnCap) {
+    btnCap.onclick = () => {
+      if (state.currentLineId == null) return
+      state.trains.filter(t => t.lineId === state.currentLineId).forEach(t => t.capacity += 1)
+    }
+  }
+
+  if (btnNewLine) {
+    btnNewLine.onclick = () => {
+      // 创建一条新线（默认取最近的两个站点连接）
+      if (state.stations.length >= 2) {
+        let bestI = 0, bestJ = 1, best = Infinity
+        for (let i = 0; i < state.stations.length; i++) {
+          for (let j = i + 1; j < state.stations.length; j++) {
+            const d = dist2(state.stations[i].pos, state.stations[j].pos)
+            if (d < best) { best = d; bestI = i; bestJ = j }
+          }
+        }
+        const color = COLORS[state.lines.length % COLORS.length]
+        const newLine = addLine(color, state.stations[bestI], state.stations[bestJ])
+        state.currentLineId = newLine.id
+        renderLinesPanel()
+      }
+    }
   }
 
   }
