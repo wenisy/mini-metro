@@ -84,9 +84,6 @@ function addLine(color: string, a: Station, b: Station, name?: string): Line {
   // add one train for line by default
   state.trains.push({ id: nextId++, lineId: l.id, atIndex: 0, t: 0, dir: 1, capacity: 6, passengersBy: zeroByShape(), passengersTo: {}, dwell: 0 })
 
-  // Don't update UI immediately - let caller handle it
-  // renderLinesPanel()
-
   return l
 }
 
@@ -126,6 +123,28 @@ function maybeEnsureBaselineLine() {
   // No longer needed since we create initial line in spawnInitialWorld
 }
 
+function canExtendLine(line: Line, from: Station, to: Station): boolean {
+  // Check if either 'from' or 'to' is at the end of the line
+  // and the other station is not already on the line
+  const fromOnLine = line.stations.includes(from.id)
+  const toOnLine = line.stations.includes(to.id)
+
+  // If both stations are already on the line, can't extend
+  if (fromOnLine && toOnLine) return false
+
+  // If neither station is on the line, can't extend
+  if (!fromOnLine && !toOnLine) return false
+
+  // Check if the station on the line is at an endpoint
+  if (fromOnLine) {
+    const fromIndex = line.stations.indexOf(from.id)
+    return fromIndex === 0 || fromIndex === line.stations.length - 1
+  } else {
+    const toIndex = line.stations.indexOf(to.id)
+    return toIndex === 0 || toIndex === line.stations.length - 1
+  }
+}
+
 
 function spawnInitialWorld() {
   // seed stations
@@ -156,12 +175,17 @@ function showLinkChooser(from: Station, to: Station) {
     text.textContent = `连接 ${from.shape} → ${to.shape}`
     let html = ''
 
+    // Check if we can extend current line
     if (state.currentLineId && state.lines.find(l => l.id === state.currentLineId)) {
       const currentLine = state.lines.find(l => l.id === state.currentLineId)!
-      html += `<button id="extend-current">延长 ${currentLine.name}</button>`
+      const canExtend = canExtendLine(currentLine, from, to)
+      if (canExtend) {
+        html += `<button id="extend-current">延长 ${currentLine.name}</button>`
+      }
     }
 
     html += `<button id="new-line">新建线路</button>`
+    html += `<button id="cancel-action">取消</button>`
     buttons.innerHTML = html
   }
 
@@ -171,6 +195,7 @@ function showLinkChooser(from: Station, to: Station) {
   const removeBtn = document.getElementById('remove-line')
   const extendBtn = document.getElementById('extend-current')
   const newBtn = document.getElementById('new-line')
+  const cancelBtn = document.getElementById('cancel-action')
 
   if (removeBtn) {
     removeBtn.onclick = () => {
@@ -183,11 +208,28 @@ function showLinkChooser(from: Station, to: Station) {
     extendBtn.onclick = () => {
       if (state.currentLineId) {
         const currentLine = state.lines.find(l => l.id === state.currentLineId)!
-        // Extend current line by adding the new station
-        if (!currentLine.stations.includes(to.id)) {
-          currentLine.stations.push(to.id)
-          renderLinesPanel()
+        // Determine which station to add and where
+        const fromOnLine = currentLine.stations.includes(from.id)
+        const toOnLine = currentLine.stations.includes(to.id)
+
+        if (fromOnLine && !toOnLine) {
+          // Add 'to' station
+          const fromIndex = currentLine.stations.indexOf(from.id)
+          if (fromIndex === 0) {
+            currentLine.stations.unshift(to.id)
+          } else if (fromIndex === currentLine.stations.length - 1) {
+            currentLine.stations.push(to.id)
+          }
+        } else if (toOnLine && !fromOnLine) {
+          // Add 'from' station
+          const toIndex = currentLine.stations.indexOf(to.id)
+          if (toIndex === 0) {
+            currentLine.stations.unshift(from.id)
+          } else if (toIndex === currentLine.stations.length - 1) {
+            currentLine.stations.push(from.id)
+          }
         }
+        renderLinesPanel()
       }
       hideLinkChooser()
     }
@@ -195,9 +237,16 @@ function showLinkChooser(from: Station, to: Station) {
 
   if (newBtn) {
     newBtn.onclick = () => {
-      const color = COLORS[(state.nextLineNum-1) % COLORS.length]
+      const color = COLORS[(state.lines.length) % COLORS.length]
       const newLine = addLine(color, from, to)
       state.currentLineId = newLine.id
+      renderLinesPanel()
+      hideLinkChooser()
+    }
+  }
+
+  if (cancelBtn) {
+    cancelBtn.onclick = () => {
       hideLinkChooser()
     }
   }
@@ -352,8 +401,18 @@ function drawLine(ctx: CanvasRenderingContext2D, line: Line) {
 
 function drawTrain(ctx: CanvasRenderingContext2D, t: Train) {
   const line = state.lines.find(l=>l.id===t.lineId)!;
+  if (!line || line.stations.length < 2) return; // Safety check
+
+  // Calculate next station index based on direction
+  let nextIndex: number;
+  if (t.dir > 0) {
+    nextIndex = Math.min(t.atIndex + 1, line.stations.length - 1);
+  } else {
+    nextIndex = Math.max(t.atIndex - 1, 0);
+  }
+
   const a = state.stations.find(s=>s.id===line.stations[t.atIndex])!.pos
-  const b = state.stations.find(s=>s.id===line.stations[(t.atIndex+1)%line.stations.length])!.pos
+  const b = state.stations.find(s=>s.id===line.stations[nextIndex])!.pos
   const x = a.x + (b.x-a.x)*t.t
   const y = a.y + (b.y-a.y)*t.t
   ctx.save();
@@ -394,11 +453,20 @@ function update(dt: number) {
     t.t += dt * 0.25
     if (t.t >= 1) {
       t.t = 0
-      // advance along line with direction; reverse at ends (longest traversal)
+      // advance along line with direction; reverse at ends
       const last = line.stations.length - 1
-      if (t.dir > 0 && t.atIndex >= last-1) t.dir = -1
-      else if (t.dir < 0 && t.atIndex <= 0) t.dir = 1
-      t.atIndex = clamp(t.atIndex + (t.dir>0? 1: -1), 0, last-1)
+
+      // Check if we need to reverse direction at the ends
+      if (t.dir > 0 && t.atIndex >= last) {
+        t.dir = -1
+        // Don't move index, just reverse direction
+      } else if (t.dir < 0 && t.atIndex <= 0) {
+        t.dir = 1
+        // Don't move index, just reverse direction
+      } else {
+        // Move to next station in current direction
+        t.atIndex = clamp(t.atIndex + (t.dir > 0 ? 1 : -1), 0, last)
+      }
 
       // service station: unload/load
       const sid = line.stations[t.atIndex]
@@ -539,10 +607,10 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
           const d = dist2(state.stations[i].pos, state.stations[j].pos)
           if (d<best){best=d;bestI=i;bestJ=j}
         }
-      const color = COLORS[(state.nextLineNum-1)%COLORS.length]
-      addLine(color, state.stations[bestI], state.stations[bestJ])
-      state.currentLineId = state.lines[state.lines.length-1].id
-      // renderLinesPanel() is already called in addLine()
+      const color = COLORS[state.lines.length % COLORS.length]
+      const newLine = addLine(color, state.stations[bestI], state.stations[bestJ])
+      state.currentLineId = newLine.id
+      renderLinesPanel()
     }
   }
   renderLinesPanel()
@@ -580,7 +648,8 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
       const world = camera.toWorld(screen)
       const target = hitTestStation(world)
       if (target && target.id !== interaction.drawingFrom.id) {
-        toggleLine('#3498db', interaction.drawingFrom, target)
+        // Show link chooser instead of directly toggling line
+        showLinkChooser(interaction.drawingFrom, target)
       }
       interaction.drawingFrom = null
       interaction.previewTo = null
