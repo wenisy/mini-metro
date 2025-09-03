@@ -72,6 +72,52 @@ const interaction = {
   selectedLine: null as Line | null,
 }
 
+// Smart attachment system types and state
+interface LineSegment {
+  lineId: number
+  segmentIndex: number  // 线段索引（0表示第一段）
+  startStationId: number
+  endStationId: number
+  startPos: Vec2
+  endPos: Vec2
+}
+
+interface AttachmentCandidate {
+  station: Station
+  line: Line
+  insertIndex: number  // 插入位置索引
+  distance: number
+  attachmentType: 'endpoint' | 'middle'
+  projectionPoint: Vec2  // 在线段上的投影点
+}
+
+// Animation system
+interface Animation {
+  id: number
+  type: 'attachment' | 'highlight'
+  startTime: number
+  duration: number
+  from: Vec2
+  to: Vec2
+  progress: number
+  completed: boolean
+}
+
+// Smart attachment state
+const smartAttachment = {
+  isDraggingLine: false,
+  draggedSegment: null as LineSegment | null,
+  dragStartPos: null as Vec2 | null,
+  currentDragPos: null as Vec2 | null,
+  attachmentCandidates: [] as AttachmentCandidate[],
+  activeCandidate: null as AttachmentCandidate | null,
+  snapThreshold: 75, // 吸附距离阈值（像素）
+  minSnapThreshold: 50, // 最小吸附距离
+  animations: [] as Animation[],
+  highlightIntensity: 0, // 高亮强度 (0-1)
+  highlightDirection: 1, // 高亮动画方向
+}
+
 let nextId = 1
 function addStation(pos: Vec2, shape?: Station['shape'], size?: Station['size']): Station {
   // 如果没有指定shape，随机选择
@@ -192,7 +238,10 @@ function spawnInitialWorld() {
   // seed stations
   const s1 = addStation({ x: 120, y: 120 }, 'circle', 'medium')
   const s2 = addStation({ x: 320, y: 140 }, 'triangle', 'medium')
-  addStation({ x: 220, y: 280 }, 'square', 'medium')
+  const s3 = addStation({ x: 220, y: 280 }, 'square', 'medium')
+  // 添加更多站点用于测试智能吸附
+  addStation({ x: 180, y: 200 }, 'star', 'small')
+  addStation({ x: 400, y: 200 }, 'heart', 'small')
   // create initial line (1号线)
   const firstLine = addLine(COLORS[0], s1, s2, '1号线')
   state.currentLineId = firstLine.id
@@ -345,6 +394,299 @@ function nearestStationWithin(p: Vec2, radius: number): Station | null {
     if (d <= bestD) { bestD = d; best = s }
   }
   return best
+}
+
+// Smart attachment utility functions
+function pointToLineSegmentDistance(point: Vec2, lineStart: Vec2, lineEnd: Vec2): { distance: number, projection: Vec2 } {
+  const dx = lineEnd.x - lineStart.x
+  const dy = lineEnd.y - lineStart.y
+  const lengthSquared = dx * dx + dy * dy
+
+  if (lengthSquared === 0) {
+    // 线段退化为点
+    const distance = Math.sqrt(dist2(point, lineStart))
+    return { distance, projection: { ...lineStart } }
+  }
+
+  // 计算投影参数 t
+  const t = Math.max(0, Math.min(1, ((point.x - lineStart.x) * dx + (point.y - lineStart.y) * dy) / lengthSquared))
+
+  // 计算投影点
+  const projection = {
+    x: lineStart.x + t * dx,
+    y: lineStart.y + t * dy
+  }
+
+  // 计算距离
+  const distance = Math.sqrt(dist2(point, projection))
+
+  return { distance, projection }
+}
+
+function getAllLineSegments(): LineSegment[] {
+  const segments: LineSegment[] = []
+
+  for (const line of state.lines) {
+    if (line.stations.length < 2) continue
+
+    for (let i = 0; i < line.stations.length - 1; i++) {
+      const startStation = state.stations.find(s => s.id === line.stations[i])
+      const endStation = state.stations.find(s => s.id === line.stations[i + 1])
+
+      if (startStation && endStation) {
+        segments.push({
+          lineId: line.id,
+          segmentIndex: i,
+          startStationId: startStation.id,
+          endStationId: endStation.id,
+          startPos: startStation.pos,
+          endPos: endStation.pos
+        })
+      }
+    }
+  }
+
+  return segments
+}
+
+function findAttachmentCandidates(targetStation: Station): AttachmentCandidate[] {
+  const candidates: AttachmentCandidate[] = []
+  const segments = getAllLineSegments()
+
+  for (const segment of segments) {
+    // 跳过已经包含目标站点的线路
+    const line = state.lines.find(l => l.id === segment.lineId)!
+    if (line.stations.includes(targetStation.id)) continue
+
+    const { distance, projection } = pointToLineSegmentDistance(
+      targetStation.pos,
+      segment.startPos,
+      segment.endPos
+    )
+
+    if (distance >= smartAttachment.minSnapThreshold && distance <= smartAttachment.snapThreshold) {
+      // 判断是端点吸附还是中间插入
+      const distToStart = Math.sqrt(dist2(targetStation.pos, segment.startPos))
+      const distToEnd = Math.sqrt(dist2(targetStation.pos, segment.endPos))
+      const isNearEndpoint = distToStart <= smartAttachment.snapThreshold || distToEnd <= smartAttachment.snapThreshold
+
+      candidates.push({
+        station: targetStation,
+        line,
+        insertIndex: segment.segmentIndex + 1, // 插入到线段后面
+        distance,
+        attachmentType: isNearEndpoint ? 'endpoint' : 'middle',
+        projectionPoint: projection
+      })
+    }
+  }
+
+  // 按距离排序，最近的优先
+  candidates.sort((a, b) => a.distance - b.distance)
+  return candidates
+}
+
+function hitTestLineSegment(p: Vec2, threshold: number = 15): LineSegment | null {
+  const segments = getAllLineSegments()
+  let bestSegment: LineSegment | null = null
+  let bestDistance = threshold
+
+  for (const segment of segments) {
+    const { distance } = pointToLineSegmentDistance(p, segment.startPos, segment.endPos)
+    if (distance <= bestDistance) {
+      bestDistance = distance
+      bestSegment = segment
+    }
+  }
+
+  if (bestSegment) {
+    console.log('检测到线路拖拽，线路ID:', bestSegment.lineId, '距离:', bestDistance.toFixed(1))
+  }
+
+  return bestSegment
+}
+
+function updateAttachmentCandidates(dragPos: Vec2) {
+  smartAttachment.attachmentCandidates = []
+  smartAttachment.activeCandidate = null
+
+  // 查找拖拽位置附近的所有站点
+  for (const station of state.stations) {
+    const distance = Math.sqrt(dist2(dragPos, station.pos))
+    if (distance <= smartAttachment.snapThreshold) {
+      const candidates = findAttachmentCandidates(station)
+      smartAttachment.attachmentCandidates.push(...candidates)
+    }
+  }
+
+  // 选择最佳候选
+  if (smartAttachment.attachmentCandidates.length > 0) {
+    smartAttachment.activeCandidate = smartAttachment.attachmentCandidates[0]
+    console.log('找到吸附候选:', smartAttachment.activeCandidate.station.shape, '距离:', smartAttachment.activeCandidate.distance.toFixed(1))
+  }
+}
+
+function startLineDrag(segment: LineSegment, startPos: Vec2) {
+  smartAttachment.isDraggingLine = true
+  smartAttachment.draggedSegment = segment
+  smartAttachment.dragStartPos = startPos
+  smartAttachment.currentDragPos = startPos
+  smartAttachment.attachmentCandidates = []
+  smartAttachment.activeCandidate = null
+}
+
+function updateLineDrag(currentPos: Vec2) {
+  if (!smartAttachment.isDraggingLine) return
+
+  smartAttachment.currentDragPos = currentPos
+  updateAttachmentCandidates(currentPos)
+}
+
+function endLineDrag(): boolean {
+  if (!smartAttachment.isDraggingLine) return false
+
+  let attachmentMade = false
+
+  if (smartAttachment.activeCandidate) {
+    attachmentMade = performAttachment(smartAttachment.activeCandidate)
+  }
+
+  // 重置拖拽状态
+  smartAttachment.isDraggingLine = false
+  smartAttachment.draggedSegment = null
+  smartAttachment.dragStartPos = null
+  smartAttachment.currentDragPos = null
+  smartAttachment.attachmentCandidates = []
+  smartAttachment.activeCandidate = null
+
+  return attachmentMade
+}
+
+function performAttachment(candidate: AttachmentCandidate): boolean {
+  const line = candidate.line
+  const station = candidate.station
+
+  // 检查站点是否已经在线路上
+  if (line.stations.includes(station.id)) {
+    return false
+  }
+
+  // 检查是否会创建不合理的连接
+  if (!isValidAttachment(candidate)) {
+    return false
+  }
+
+  // 创建吸附动画
+  if (smartAttachment.currentDragPos) {
+    createAttachmentAnimation(smartAttachment.currentDragPos, station.pos)
+  }
+
+  // 执行吸附
+  if (candidate.attachmentType === 'endpoint') {
+    // 端点吸附：添加到线路末端
+    const firstStation = state.stations.find(s => s.id === line.stations[0])!
+    const lastStation = state.stations.find(s => s.id === line.stations[line.stations.length - 1])!
+
+    const distToFirst = Math.sqrt(dist2(station.pos, firstStation.pos))
+    const distToLast = Math.sqrt(dist2(station.pos, lastStation.pos))
+
+    if (distToFirst < distToLast) {
+      line.stations.unshift(station.id)
+    } else {
+      line.stations.push(station.id)
+    }
+  } else {
+    // 中间插入：在指定位置插入站点
+    line.stations.splice(candidate.insertIndex, 0, station.id)
+  }
+
+  // 更新UI
+  renderLinesPanel()
+  return true
+}
+
+function isValidAttachment(candidate: AttachmentCandidate): boolean {
+  const line = candidate.line
+  const station = candidate.station
+
+  // 检查是否会创建过短的连接（避免重叠）
+  const minDistance = 30
+
+  if (candidate.attachmentType === 'endpoint') {
+    const firstStation = state.stations.find(s => s.id === line.stations[0])!
+    const lastStation = state.stations.find(s => s.id === line.stations[line.stations.length - 1])!
+
+    const distToFirst = Math.sqrt(dist2(station.pos, firstStation.pos))
+    const distToLast = Math.sqrt(dist2(station.pos, lastStation.pos))
+
+    return distToFirst >= minDistance && distToLast >= minDistance
+  } else {
+    // 中间插入：检查与相邻站点的距离
+    const insertIndex = candidate.insertIndex
+    if (insertIndex > 0 && insertIndex < line.stations.length) {
+      const prevStation = state.stations.find(s => s.id === line.stations[insertIndex - 1])!
+      const nextStation = state.stations.find(s => s.id === line.stations[insertIndex])!
+
+      const distToPrev = Math.sqrt(dist2(station.pos, prevStation.pos))
+      const distToNext = Math.sqrt(dist2(station.pos, nextStation.pos))
+
+      return distToPrev >= minDistance && distToNext >= minDistance
+    }
+  }
+
+  return true
+}
+
+function checkLineIntersection(line1Start: Vec2, line1End: Vec2, line2Start: Vec2, line2End: Vec2): boolean {
+  // 简单的线段相交检测
+  const det = (line1End.x - line1Start.x) * (line2End.y - line2Start.y) - (line1End.y - line1Start.y) * (line2End.x - line2Start.x)
+  if (Math.abs(det) < 1e-10) return false // 平行线
+
+  const t = ((line2Start.x - line1Start.x) * (line2End.y - line2Start.y) - (line2Start.y - line1Start.y) * (line2End.x - line2Start.x)) / det
+  const u = -((line1Start.x - line1Start.x) * (line1End.y - line1Start.y) - (line1Start.y - line1Start.y) * (line1End.x - line1Start.x)) / det
+
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1
+}
+
+// Animation functions
+function updateAnimations(dt: number) {
+  const currentTime = performance.now()
+
+  // 更新高亮动画
+  if (smartAttachment.activeCandidate) {
+    smartAttachment.highlightIntensity += smartAttachment.highlightDirection * dt * 3
+    if (smartAttachment.highlightIntensity >= 1) {
+      smartAttachment.highlightIntensity = 1
+      smartAttachment.highlightDirection = -1
+    } else if (smartAttachment.highlightIntensity <= 0.3) {
+      smartAttachment.highlightIntensity = 0.3
+      smartAttachment.highlightDirection = 1
+    }
+  } else {
+    smartAttachment.highlightIntensity = 0
+    smartAttachment.highlightDirection = 1
+  }
+
+  // 更新其他动画
+  smartAttachment.animations = smartAttachment.animations.filter(anim => {
+    anim.progress = Math.min(1, (currentTime - anim.startTime) / anim.duration)
+    anim.completed = anim.progress >= 1
+    return !anim.completed
+  })
+}
+
+function createAttachmentAnimation(from: Vec2, to: Vec2) {
+  const animation: Animation = {
+    id: Date.now(),
+    type: 'attachment',
+    startTime: performance.now(),
+    duration: 300, // 300ms
+    from: { ...from },
+    to: { ...to },
+    progress: 0,
+    completed: false
+  }
+  smartAttachment.animations.push(animation)
 }
 
 
@@ -600,6 +942,10 @@ function update(dt: number) {
   state.time += dt
   maybeSpawnStations(dt)
   maybeEnsureBaselineLine()
+
+  // 更新智能吸附动画
+  updateAnimations(dt)
+
   // spawn passenger with concrete destination (reduced spawn rate)
   if (state.stations.length && Math.random() < dt * (state.passengerSpawnBaseRate + state.time*0.005)) {
     const from = state.stations[Math.floor(Math.random()*state.stations.length)]
@@ -681,6 +1027,7 @@ function render(ctx: CanvasRenderingContext2D, camera: Camera, canvas: HTMLCanva
   ctx.fillStyle = '#111'; ctx.fillRect(camera.pos.x, camera.pos.y, canvas.width/camera.scale, canvas.height/camera.scale)
   // draw lines then stations then trains
   state.lines.forEach(l=>drawLine(ctx,l))
+
   // preview line if drawing
   if (interaction.drawingFrom && interaction.previewTo) {
     ctx.save();
@@ -693,8 +1040,78 @@ function render(ctx: CanvasRenderingContext2D, camera: Camera, canvas: HTMLCanva
     ctx.stroke();
     ctx.restore();
   }
+
+  // 绘制智能吸附的视觉反馈
+  drawSmartAttachmentFeedback(ctx)
+
   state.stations.forEach(s=>drawStation(ctx,s))
   state.trains.forEach(t=>drawTrain(ctx,t))
+  ctx.restore()
+}
+
+function drawSmartAttachmentFeedback(ctx: CanvasRenderingContext2D) {
+  if (!smartAttachment.isDraggingLine || !smartAttachment.activeCandidate) return
+
+  const candidate = smartAttachment.activeCandidate
+  const station = candidate.station
+  const intensity = smartAttachment.highlightIntensity
+
+  ctx.save()
+
+  // 动态高亮目标站点
+  const highlightColor = `rgba(0, 255, 136, ${intensity})`
+  ctx.strokeStyle = highlightColor
+  ctx.lineWidth = 3 + intensity * 2
+  ctx.setLineDash([5, 5])
+  ctx.beginPath()
+  ctx.arc(station.pos.x, station.pos.y, 25 + intensity * 5, 0, Math.PI * 2)
+  ctx.stroke()
+
+  // 绘制吸附预览线
+  if (smartAttachment.currentDragPos) {
+    ctx.strokeStyle = highlightColor
+    ctx.lineWidth = 2 + intensity
+    ctx.setLineDash([3, 3])
+    ctx.beginPath()
+    ctx.moveTo(smartAttachment.currentDragPos.x, smartAttachment.currentDragPos.y)
+    ctx.lineTo(station.pos.x, station.pos.y)
+    ctx.stroke()
+
+    // 绘制投影点
+    ctx.fillStyle = highlightColor
+    ctx.beginPath()
+    ctx.arc(candidate.projectionPoint.x, candidate.projectionPoint.y, 4 + intensity * 2, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  // 绘制拖拽指示器
+  if (smartAttachment.currentDragPos) {
+    ctx.fillStyle = `rgba(0, 255, 136, ${0.3 + intensity * 0.2})`
+    ctx.beginPath()
+    ctx.arc(smartAttachment.currentDragPos.x, smartAttachment.currentDragPos.y, 8 + intensity * 2, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.strokeStyle = highlightColor
+    ctx.lineWidth = 2
+    ctx.setLineDash([])
+    ctx.beginPath()
+    ctx.arc(smartAttachment.currentDragPos.x, smartAttachment.currentDragPos.y, 8 + intensity * 2, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  // 绘制动画效果
+  for (const anim of smartAttachment.animations) {
+    if (anim.type === 'attachment') {
+      const alpha = 1 - anim.progress
+      ctx.strokeStyle = `rgba(0, 255, 136, ${alpha})`
+      ctx.lineWidth = 3
+      ctx.setLineDash([])
+      ctx.beginPath()
+      ctx.arc(anim.to.x, anim.to.y, 20 * anim.progress, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+  }
+
   ctx.restore()
 }
 
@@ -713,6 +1130,10 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
       const screen = pointerPos(e, canvas)
       const world = camera.toWorld(screen)
       const s = hitTestStation(world)
+
+      // 检查是否点击了线路（用于拖拽）
+      const lineSegment = hitTestLineSegment(world, 15)
+
       if (interaction.drawingFrom) {
         // Second tap: show link chooser
         const target = s ?? nearestStationWithin(world, 20)
@@ -729,8 +1150,13 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
           interaction.previewTo = { ...s.pos }
           isPanning = false
           return
+        } else if (lineSegment) {
+          // 开始拖拽线路
+          startLineDrag(lineSegment, world)
+          isPanning = false
+          return
         } else if (!s) {
-          // Start panning if not tapping a station
+          // Start panning if not tapping a station or line
           // If previously in drawing mode, a blank tap cancels
           if (interaction.drawingFrom) {
             interaction.drawingFrom = null
@@ -747,25 +1173,17 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
     const prev = pointers.get(e.pointerId)
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
     if (pointers.size === 1) {
-      if (interaction.drawingFrom) {
+      const screen = pointerPos(e, canvas)
+      const world = camera.toWorld(screen)
+
+      if (smartAttachment.isDraggingLine) {
+        // 更新线路拖拽
+        updateLineDrag(world)
+        return
+      } else if (interaction.drawingFrom) {
         // update preview (snap preview to nearest station within 20px)
-        const screen = pointerPos(e, canvas)
-        const world = camera.toWorld(screen)
         const snapped = nearestStationWithin(world, 20)
         interaction.previewTo = snapped ? { ...snapped.pos } : world
-  // HUD actions: +Train / Capacity +1 / Lines list and New Line
-  const btnAddTrain = document.getElementById('btn-add-train') as HTMLButtonElement
-  const btnCap = document.getElementById('btn-capacity') as HTMLButtonElement
-  if (btnAddTrain) btnAddTrain.onclick = ()=>{
-    if (state.currentLineId==null) return
-    state.trains.push({ id: nextId++, lineId: state.currentLineId, atIndex: 0, t: 0, dir: 1, capacity: 6, passengersBy: zeroByShape(), passengersTo: {}, dwell: 0 })
-  }
-  if (btnCap) btnCap.onclick = ()=>{
-    if (state.currentLineId==null) return
-    state.trains.filter(t=>t.lineId===state.currentLineId).forEach(t=> t.capacity += 1)
-  }
-  renderLinesPanel()
-
         // Prevent panning while drawing
         return
       } else if (isPanning && prev) {
@@ -782,10 +1200,6 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
       const center = { x: (a.x+b.x)/2, y: (a.y+b.y)/2 }
       const worldBefore = camera.toWorld(center)
       camera.scale = clamp(camera.scale * factor, 0.5, 3)
-  // Prevent iOS context menu and selection gestures on canvas
-  canvas.addEventListener('contextmenu', (e)=> e.preventDefault())
-  canvas.addEventListener('selectstart', (e)=> e.preventDefault())
-
       const worldAfter = camera.toWorld(center)
       camera.pos.x += worldBefore.x - worldAfter.x
       camera.pos.y += worldBefore.y - worldAfter.y
@@ -793,6 +1207,15 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
     }
   }
   function onPointerUp(e: PointerEvent) {
+    // 处理线路拖拽结束
+    if (smartAttachment.isDraggingLine) {
+      const attachmentMade = endLineDrag()
+      if (attachmentMade) {
+        // 吸附成功，可以添加一些反馈
+        console.log('智能吸附成功！')
+      }
+    }
+
     // finish drawing if released on a station
     if (interaction.drawingFrom) {
       const screen = pointerPos(e, canvas)
@@ -806,6 +1229,7 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
       interaction.previewTo = null
       interaction.selectedLine = null // Reset selected line on pointer up
     }
+
     pointers.delete(e.pointerId)
     if (pointers.size < 2) pinchDist0 = 0
     if (pointers.size === 0) { isPanning = false }
@@ -815,6 +1239,10 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
   canvas.addEventListener('pointermove', onPointerMove)
   canvas.addEventListener('pointerup', onPointerUp)
   canvas.addEventListener('pointercancel', onPointerUp)
+
+  // Prevent iOS context menu and selection gestures on canvas
+  canvas.addEventListener('contextmenu', (e)=> e.preventDefault())
+  canvas.addEventListener('selectstart', (e)=> e.preventDefault())
 
   canvas.addEventListener('wheel', (e)=>{
     e.preventDefault()
