@@ -54,7 +54,7 @@ const state = {
   showLinkChooser: false,
   linkChooserFrom: null as Station | null,
   linkChooserTo: null as Station | null,
-  passengerSpawnBaseRate: 0.05, // 可调整的乘客生成基础概率
+  passengerSpawnBaseRate: 0.05, // 可调整的乘客生成基础概率 (每秒乘客数 * 0.1)
 }
 
 const COLORS = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22']
@@ -341,6 +341,7 @@ function renderLinesPanel() {
       <span style="display:inline-block;width:10px;height:10px;background:${l.color};border-radius:2px"></span>
       <button data-line="${l.id}" class="line-select" style="font-size:12px;flex:1;text-align:left">${l.name}</button>
       <small style="opacity:.7;font-size:10px">${trainCount}车 ${avgCapacity}座</small>
+      <button data-line-delete="${l.id}" class="line-delete" style="font-size:12px;color:#ff6b6b;border:none;background:none;cursor:pointer;padding:2px 4px;border-radius:2px;" title="删除线路">×</button>
     </div>`
   }).join('')
 
@@ -352,6 +353,16 @@ function renderLinesPanel() {
       state.currentLineId = id
       console.log('选中线路:', id)
       renderLinesPanel() // Re-render to show selection
+    })
+  })
+
+  // Add delete button event listeners
+  linesList.querySelectorAll('button.line-delete').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = Number((btn as HTMLButtonElement).dataset.lineDelete)
+      if (confirm(`确定要删除 ${state.lines.find(l => l.id === id)?.name} 吗？`)) {
+        removeLine(id)
+      }
     })
   })
   console.log('renderLinesPanel 完成')
@@ -632,7 +643,6 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
   // HUD actions: +Train / Capacity +1 / Lines list and New Line
   const btnAddTrain = document.getElementById('btn-add-train') as HTMLButtonElement
   const btnCap = document.getElementById('btn-capacity') as HTMLButtonElement
-  const btnNewLine = document.getElementById('btn-new-line') as HTMLButtonElement
   if (btnAddTrain) btnAddTrain.onclick = ()=>{
     if (state.currentLineId==null) return
     state.trains.push({ id: nextId++, lineId: state.currentLineId, atIndex: 0, t: 0, dir: 1, capacity: 6, passengersBy: zeroByShape(), passengersTo: {}, dwell: 0 })
@@ -640,24 +650,6 @@ function setupInput(canvas: HTMLCanvasElement, camera: Camera) {
   if (btnCap) btnCap.onclick = ()=>{
     if (state.currentLineId==null) return
     state.trains.filter(t=>t.lineId===state.currentLineId).forEach(t=> t.capacity += 1)
-  }
-  if (btnNewLine) btnNewLine.onclick = ()=>{
-    // 创建一条新线（默认取最近的两个站点连接，或等待下一次A→B选择使用新线）
-    state.currentLineId = null
-    // 下次点A→点B时如果选择“新线”，就用新的颜色
-    // 简化：立即创建基于最近站点对的新线
-    if (state.stations.length>=2) {
-      let bestI=0,bestJ=1, best=Infinity
-      for (let i=0;i<state.stations.length;i++)
-        for (let j=i+1;j<state.stations.length;j++){
-          const d = dist2(state.stations[i].pos, state.stations[j].pos)
-          if (d<best){best=d;bestI=i;bestJ=j}
-        }
-      const color = COLORS[state.lines.length % COLORS.length]
-      const newLine = addLine(color, state.stations[bestI], state.stations[bestJ])
-      state.currentLineId = newLine.id
-      renderLinesPanel()
-    }
   }
   renderLinesPanel()
 
@@ -765,23 +757,25 @@ function main() {
     updateLabels()
   }
 
-  // 乘客生成概率滑块
+  // 乘客生成概率滑块 (每秒乘客数)
   const passengerRateSlider = document.getElementById('passenger-rate') as HTMLInputElement
   const passengerRateValue = document.getElementById('passenger-rate-value') as HTMLSpanElement
   if (passengerRateSlider && passengerRateValue) {
-    passengerRateSlider.value = state.passengerSpawnBaseRate.toString()
-    passengerRateValue.textContent = state.passengerSpawnBaseRate.toString()
+    // 将概率转换为每秒乘客数显示 (概率 * 10)
+    const passengersPerSecond = state.passengerSpawnBaseRate * 10
+    passengerRateSlider.value = passengersPerSecond.toString()
+    passengerRateValue.textContent = passengersPerSecond.toString()
     passengerRateSlider.oninput = () => {
-      const value = parseFloat(passengerRateSlider.value)
-      state.passengerSpawnBaseRate = value
-      passengerRateValue.textContent = value.toFixed(2)
+      const passengersPerSecond = parseFloat(passengerRateSlider.value)
+      // 将每秒乘客数转换为概率 (每秒乘客数 / 10)
+      state.passengerSpawnBaseRate = passengersPerSecond * 0.1
+      passengerRateValue.textContent = passengersPerSecond.toString()
     }
   }
 
   // HUD actions: +Train / Capacity +1 / Lines list and New Line
   const btnAddTrain = document.getElementById('btn-add-train') as HTMLButtonElement
   const btnCap = document.getElementById('btn-capacity') as HTMLButtonElement
-  const btnNewLine = document.getElementById('btn-new-line') as HTMLButtonElement
 
   if (btnAddTrain) {
     btnAddTrain.onclick = () => {
@@ -804,25 +798,6 @@ function main() {
     btnCap.onclick = () => {
       if (state.currentLineId == null) return
       state.trains.filter(t => t.lineId === state.currentLineId).forEach(t => t.capacity += 1)
-    }
-  }
-
-  if (btnNewLine) {
-    btnNewLine.onclick = () => {
-      // 创建一条新线（默认取最近的两个站点连接）
-      if (state.stations.length >= 2) {
-        let bestI = 0, bestJ = 1, best = Infinity
-        for (let i = 0; i < state.stations.length; i++) {
-          for (let j = i + 1; j < state.stations.length; j++) {
-            const d = dist2(state.stations[i].pos, state.stations[j].pos)
-            if (d < best) { best = d; bestI = i; bestJ = j }
-          }
-        }
-        const color = COLORS[state.lines.length % COLORS.length]
-        const newLine = addLine(color, state.stations[bestI], state.stations[bestJ])
-        state.currentLineId = newLine.id
-        renderLinesPanel()
-      }
     }
   }
 

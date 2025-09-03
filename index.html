@@ -1,4 +1,4 @@
-<!doctype html>
+n d<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -23,9 +23,9 @@
           <button id="spawn-on-connect" style="font-size:12px">Spawn on Connect: Off</button>
         </div>
         <div style="margin-bottom:6px">
-          <label for="passenger-rate" style="font-size:12px">乘客生成概率: </label>
-          <input type="range" id="passenger-rate" min="0.01" max="0.5" step="0.01" value="0.05" style="width: 100px;">
-          <span id="passenger-rate-value" style="font-size:12px">0.05</span>
+          <label for="passenger-rate" style="font-size:12px">每秒乘客数: </label>
+          <input type="range" id="passenger-rate" min="0.1" max="5" step="0.1" value="0.5" style="width: 100px;">
+          <span id="passenger-rate-value" style="font-size:12px">0.5</span>
         </div>
         <div style="margin-bottom:6px">
           <button id="btn-add-train" style="font-size:12px" title="为当前线路添加列车">+ 列车</button>
@@ -34,7 +34,6 @@
         <div id="lines-panel" style="max-width: 220px; text-align:left; background: rgba(0,0,0,0.2); padding:6px; border-radius:6px">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px">
             <strong style="font-size:12px">线路管理</strong>
-            <button id="btn-new-line" style="font-size:12px" title="创建新线路连接最近的两个站点">+ 新线路</button>
           </div>
           <div id="lines-list" style="font-size:12px"></div>
         </div>
