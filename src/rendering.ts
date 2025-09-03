@@ -1,5 +1,5 @@
 import type { Vec2, Station, Line, Train, Shape } from './types.js'
-import { state, total, isTransferStation, getStationLineCount } from './game-state.js'
+import { state, total, isTransferStation, getStationLineCount, moneyEffects } from './game-state.js'
 import { smartAttachment, segmentDeletion } from './smart-attachment.js'
 
 // 相机类
@@ -226,21 +226,50 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
 // 绘制智能吸附反馈
 export function drawSmartAttachmentFeedback(ctx: CanvasRenderingContext2D): void {
   if (!smartAttachment.isDraggingLine || !smartAttachment.activeCandidate) return
-  
+
   const candidate = smartAttachment.activeCandidate
   const station = candidate.station
   const intensity = smartAttachment.highlightIntensity
-  
+  const isCurrentLine = state.currentLineId === candidate.line.id
+
   ctx.save()
-  
+
+  // 根据是否为当前线路选择不同的高亮颜色
+  const highlightColor = isCurrentLine
+    ? `rgba(0, 255, 136, ${intensity})` // 绿色：当前线路
+    : `rgba(255, 165, 0, ${intensity})`  // 橙色：其他线路
+
   // 动态高亮目标站点
-  const highlightColor = `rgba(0, 255, 136, ${intensity})`
   ctx.strokeStyle = highlightColor
-  ctx.lineWidth = 3 + intensity * 2
+  ctx.lineWidth = isCurrentLine ? 4 + intensity * 2 : 3 + intensity * 2
   ctx.setLineDash([5, 5])
   ctx.beginPath()
   ctx.arc(station.pos.x, station.pos.y, 25 + intensity * 5, 0, Math.PI * 2)
   ctx.stroke()
+
+  // 高亮目标线路
+  const targetLine = candidate.line
+  if (targetLine.stations.length >= 2) {
+    ctx.strokeStyle = isCurrentLine
+      ? `rgba(0, 255, 136, ${0.6 + intensity * 0.4})`
+      : `rgba(255, 165, 0, ${0.6 + intensity * 0.4})`
+    ctx.lineWidth = isCurrentLine ? 6 : 4
+    ctx.setLineDash([8, 4])
+
+    ctx.beginPath()
+    for (let i = 0; i < targetLine.stations.length - 1; i++) {
+      const startStation = state.stations.find(s => s.id === targetLine.stations[i])
+      const endStation = state.stations.find(s => s.id === targetLine.stations[i + 1])
+
+      if (startStation && endStation) {
+        if (i === 0) {
+          ctx.moveTo(startStation.pos.x, startStation.pos.y)
+        }
+        ctx.lineTo(endStation.pos.x, endStation.pos.y)
+      }
+    }
+    ctx.stroke()
+  }
   
   // 绘制吸附预览线
   if (smartAttachment.currentDragPos) {
@@ -261,11 +290,15 @@ export function drawSmartAttachmentFeedback(ctx: CanvasRenderingContext2D): void
   
   // 绘制拖拽指示器
   if (smartAttachment.currentDragPos) {
-    ctx.fillStyle = `rgba(0, 255, 136, ${0.3 + intensity * 0.2})`
+    const dragColor = isCurrentLine
+      ? `rgba(0, 255, 136, ${0.3 + intensity * 0.2})`
+      : `rgba(255, 165, 0, ${0.3 + intensity * 0.2})`
+
+    ctx.fillStyle = dragColor
     ctx.beginPath()
     ctx.arc(smartAttachment.currentDragPos.x, smartAttachment.currentDragPos.y, 8 + intensity * 2, 0, Math.PI * 2)
     ctx.fill()
-    
+
     ctx.strokeStyle = highlightColor
     ctx.lineWidth = 2
     ctx.setLineDash([])
@@ -273,7 +306,30 @@ export function drawSmartAttachmentFeedback(ctx: CanvasRenderingContext2D): void
     ctx.arc(smartAttachment.currentDragPos.x, smartAttachment.currentDragPos.y, 8 + intensity * 2, 0, Math.PI * 2)
     ctx.stroke()
   }
-  
+
+  // 绘制线路名称提示
+  if (smartAttachment.currentDragPos) {
+    const textColor = isCurrentLine ? '#00ff88' : '#ffa500'
+    const prefix = isCurrentLine ? '✓ ' : '→ '
+    const text = `${prefix}${candidate.line.name}`
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
+    ctx.font = 'bold 12px system-ui'
+    const textMetrics = ctx.measureText(text)
+    const textWidth = textMetrics.width
+    const textHeight = 16
+
+    const textX = smartAttachment.currentDragPos.x + 15
+    const textY = smartAttachment.currentDragPos.y - 15
+
+    // 绘制背景
+    ctx.fillRect(textX - 4, textY - textHeight + 2, textWidth + 8, textHeight + 4)
+
+    // 绘制文本
+    ctx.fillStyle = textColor
+    ctx.fillText(text, textX, textY)
+  }
+
   // 绘制动画效果
   for (const anim of smartAttachment.animations) {
     if (anim.type === 'attachment') {
@@ -286,7 +342,7 @@ export function drawSmartAttachmentFeedback(ctx: CanvasRenderingContext2D): void
       ctx.stroke()
     }
   }
-  
+
   ctx.restore()
 }
 
@@ -335,6 +391,61 @@ export function drawSegmentDeletionFeedback(ctx: CanvasRenderingContext2D): void
   ctx.restore()
 }
 
+// 绘制金钱变化效果
+export function drawMoneyEffects(ctx: CanvasRenderingContext2D): void {
+  const currentTime = performance.now()
+
+  for (const effect of moneyEffects) {
+    const elapsed = currentTime - effect.startTime
+    const progress = Math.min(elapsed / effect.duration, 1)
+
+    if (progress >= 1) continue // 效果已结束，将在更新中被移除
+
+    ctx.save()
+
+    // 计算位置（向上飘动）
+    const offsetY = -progress * 50 // 向上移动50像素
+    const x = effect.pos.x
+    const y = effect.pos.y + offsetY
+
+    // 计算透明度（淡出效果）
+    const alpha = 1 - progress
+
+    // 设置样式
+    const isIncome = effect.type === 'income'
+    const color = isIncome ? '#00ff88' : '#ff4757'
+    const sign = isIncome ? '+' : '-'
+
+    ctx.fillStyle = `rgba(${isIncome ? '0, 255, 136' : '255, 71, 87'}, ${alpha})`
+    ctx.font = 'bold 14px system-ui'
+    ctx.textAlign = 'center'
+
+    // 绘制金钱变化文本
+    const text = `${sign}$${Math.abs(effect.amount)}`
+    ctx.fillText(text, x, y)
+
+    // 添加阴影效果
+    ctx.fillStyle = `rgba(0, 0, 0, ${alpha * 0.5})`
+    ctx.fillText(text, x + 1, y + 1)
+
+    ctx.restore()
+  }
+}
+
+// 更新金钱效果（移除已完成的效果）
+export function updateMoneyEffects(): void {
+  const currentTime = performance.now()
+
+  for (let i = moneyEffects.length - 1; i >= 0; i--) {
+    const effect = moneyEffects[i]
+    const elapsed = currentTime - effect.startTime
+
+    if (elapsed >= effect.duration) {
+      moneyEffects.splice(i, 1)
+    }
+  }
+}
+
 // 主渲染函数
 export function render(ctx: CanvasRenderingContext2D, camera: Camera, canvas: HTMLCanvasElement, interaction: any): void {
   ctx.save()
@@ -374,6 +485,9 @@ export function render(ctx: CanvasRenderingContext2D, camera: Camera, canvas: HT
 
   // 绘制列车
   state.trains.forEach(t => drawTrain(ctx, t))
+
+  // 绘制金钱变化效果
+  drawMoneyEffects(ctx)
 
   ctx.restore()
 }

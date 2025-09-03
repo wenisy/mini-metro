@@ -2,11 +2,11 @@ import './style.css'
 
 // 导入模块化的代码
 import { state, spawnInitialWorld } from './game-state.js'
-import { Camera, render } from './rendering.js'
+import { Camera, render, updateMoneyEffects } from './rendering.js'
 import { setupInput, interaction } from './input-handling.js'
 import { updateAnimations } from './smart-attachment.js'
 import { updateTrains, maybeSpawnStations, spawnPassengers } from './train-logic.js'
-import { setupUIControls, renderLinesPanel, showLinkChooser, hideLinkChooser } from './ui-controls.js'
+import { setupUIControls, renderLinesPanel, showLinkChooser, hideLinkChooser, updateFinancialPanel } from './ui-controls.js'
 
 // 基础游戏引导：DPR感知画布，固定时间步长循环，指针输入
 
@@ -39,6 +39,14 @@ function update(dt: number) {
 
   // 更新列车
   updateTrains(dt)
+
+  // 更新金钱效果
+  updateMoneyEffects()
+
+  // 定期更新财务面板（每秒更新一次）
+  if (Math.floor(state.time * 10) % 10 === 0) {
+    updateFinancialPanel()
+  }
 }
 
 // 主函数

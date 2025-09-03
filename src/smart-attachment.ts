@@ -77,22 +77,22 @@ export function getAllLineSegments(): LineSegment[] {
 export function findAttachmentCandidates(targetStation: any): AttachmentCandidate[] {
   const candidates: AttachmentCandidate[] = []
   const segments = getAllLineSegments()
-  
+
   for (const segment of segments) {
     const line = state.lines.find(l => l.id === segment.lineId)!
     if (line.stations.includes(targetStation.id)) continue
-    
+
     const { distance, projection } = pointToLineSegmentDistance(
-      targetStation.pos, 
-      segment.startPos, 
+      targetStation.pos,
+      segment.startPos,
       segment.endPos
     )
-    
+
     if (distance >= smartAttachment.minSnapThreshold && distance <= smartAttachment.snapThreshold) {
       const distToStart = Math.sqrt(dist2(targetStation.pos, segment.startPos))
       const distToEnd = Math.sqrt(dist2(targetStation.pos, segment.endPos))
       const isNearEndpoint = distToStart <= smartAttachment.snapThreshold || distToEnd <= smartAttachment.snapThreshold
-      
+
       candidates.push({
         station: targetStation,
         line,
@@ -103,8 +103,22 @@ export function findAttachmentCandidates(targetStation: any): AttachmentCandidat
       })
     }
   }
-  
-  candidates.sort((a, b) => a.distance - b.distance)
+
+  // 智能排序：优先考虑当前选中的线路
+  candidates.sort((a, b) => {
+    // 如果有当前选中的线路，优先选择它
+    if (state.currentLineId) {
+      const aIsCurrentLine = a.line.id === state.currentLineId
+      const bIsCurrentLine = b.line.id === state.currentLineId
+
+      if (aIsCurrentLine && !bIsCurrentLine) return -1
+      if (!aIsCurrentLine && bIsCurrentLine) return 1
+    }
+
+    // 如果都是或都不是当前线路，按距离排序
+    return a.distance - b.distance
+  })
+
   return candidates
 }
 
@@ -133,7 +147,7 @@ export function hitTestLineSegment(p: Vec2, threshold: number = 15): LineSegment
 export function updateAttachmentCandidates(dragPos: Vec2): void {
   smartAttachment.attachmentCandidates = []
   smartAttachment.activeCandidate = null
-  
+
   for (const station of state.stations) {
     const distance = Math.sqrt(dist2(dragPos, station.pos))
     if (distance <= smartAttachment.snapThreshold) {
@@ -141,10 +155,26 @@ export function updateAttachmentCandidates(dragPos: Vec2): void {
       smartAttachment.attachmentCandidates.push(...candidates)
     }
   }
-  
+
+  // 对所有候选进行智能排序
+  smartAttachment.attachmentCandidates.sort((a, b) => {
+    // 如果有当前选中的线路，优先选择它
+    if (state.currentLineId) {
+      const aIsCurrentLine = a.line.id === state.currentLineId
+      const bIsCurrentLine = b.line.id === state.currentLineId
+
+      if (aIsCurrentLine && !bIsCurrentLine) return -1
+      if (!aIsCurrentLine && bIsCurrentLine) return 1
+    }
+
+    // 如果都是或都不是当前线路，按距离排序
+    return a.distance - b.distance
+  })
+
   if (smartAttachment.attachmentCandidates.length > 0) {
     smartAttachment.activeCandidate = smartAttachment.attachmentCandidates[0]
-    console.log('找到吸附候选:', smartAttachment.activeCandidate.station.shape, '距离:', smartAttachment.activeCandidate.distance.toFixed(1))
+    const currentLineText = state.currentLineId && smartAttachment.activeCandidate.line.id === state.currentLineId ? ' (当前线路)' : ''
+    console.log(`找到吸附候选: ${smartAttachment.activeCandidate.station.shape} → ${smartAttachment.activeCandidate.line.name}${currentLineText}, 距离: ${smartAttachment.activeCandidate.distance.toFixed(1)}`)
   }
 }
 

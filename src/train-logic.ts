@@ -1,5 +1,5 @@
 import type { Shape } from './types.js'
-import { state, zeroByShape, total, clamp, calculateDwellTime } from './game-state.js'
+import { state, zeroByShape, total, clamp, calculateDwellTime, addMoney, calculateTicketPrice } from './game-state.js'
 
 // 列车运行逻辑
 export function updateTrains(dt: number): void {
@@ -33,8 +33,41 @@ export function updateTrains(dt: number): void {
       // 服务站点：卸载/装载
       const sid = line.stations[t.atIndex]
       const s = state.stations.find(st => st.id === sid)!
-      
-      // 卸载匹配的乘客
+
+      // 卸载匹配的乘客并计算收入
+      const passengersToUnload = t.passengersBy[s.shape]
+      if (passengersToUnload > 0) {
+        // 计算这些乘客的收入
+        let totalIncome = 0
+
+        // 检查按目的地分类的乘客
+        for (const destIdStr of Object.keys(t.passengersTo)) {
+          const destId = Number(destIdStr)
+          if (destId === sid) {
+            const passengersAtDest = t.passengersTo[destId]
+            if (passengersAtDest && passengersAtDest[s.shape] > 0) {
+              const count = passengersAtDest[s.shape]
+              const ticketPrice = calculateTicketPrice(destId, sid, s.shape) // 注意：这里需要起始站信息
+              totalIncome += count * ticketPrice
+
+              // 清除已下车的乘客
+              passengersAtDest[s.shape] = 0
+            }
+          }
+        }
+
+        // 如果没有具体的起始站信息，使用平均票价
+        if (totalIncome === 0 && passengersToUnload > 0) {
+          const averageTicketPrice = 25 // 平均票价
+          totalIncome = passengersToUnload * averageTicketPrice
+        }
+
+        // 添加收入
+        if (totalIncome > 0) {
+          addMoney(totalIncome, `运输${passengersToUnload}名${s.shape}乘客`, s.pos)
+        }
+      }
+
       t.passengersBy[s.shape] = 0
       
       // 开始停车 - 使用动态停车时间（换乘站停留更久）

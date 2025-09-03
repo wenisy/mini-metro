@@ -107,3 +107,44 @@ export interface CameraState {
   pos: Vec2
   scale: number
 }
+
+// 经济系统类型
+export interface EconomyState {
+  balance: number           // 当前余额
+  totalIncome: number      // 总收入
+  totalExpense: number     // 总支出
+  incomeHistory: number[]  // 收入历史（用于统计）
+  expenseHistory: number[] // 支出历史（用于统计）
+}
+
+export interface PriceConfig {
+  // 收入相关
+  baseTicketPrice: number           // 基础票价
+  distanceMultiplier: number        // 距离倍数
+  transferBonus: number             // 换乘站奖励
+  shapeMultipliers: Record<Shape, number> // 不同形状乘客的票价倍数
+
+  // 支出相关
+  newLineBaseCost: number           // 新建线路基础费用
+  lineExtensionCost: number         // 线路延长费用（每站点）
+  newTrainCost: number              // 新列车费用
+  trainCapacityUpgradeCost: number  // 列车容量升级费用（每单位容量）
+  trainMaintenanceCost: number      // 列车维护费用（每列车每分钟，可选）
+}
+
+export interface Transaction {
+  id: number
+  type: 'income' | 'expense'
+  amount: number
+  description: string
+  timestamp: number
+}
+
+export interface MoneyChangeEffect {
+  id: number
+  amount: number
+  pos: Vec2
+  startTime: number
+  duration: number
+  type: 'income' | 'expense'
+}

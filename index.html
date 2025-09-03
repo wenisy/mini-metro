@@ -25,6 +25,18 @@
         <div style="margin-bottom:6px">
           <button id="toggle-delete-mode" style="font-size:12px; background-color:#ff4757; color:white; border:none; padding:4px 8px; border-radius:4px;">删除线路段: Off</button>
         </div>
+
+        <!-- 财务面板 -->
+        <div style="max-width: 220px; text-align:left; background: rgba(0,100,0,0.2); padding:6px; border-radius:6px; margin-bottom:6px; border: 1px solid rgba(0,255,0,0.3);">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px">
+            <strong style="font-size:12px; color:#00ff88;">💰 财务状况</strong>
+          </div>
+          <div style="font-size:11px; color:#fff;">
+            <div>余额: $<span id="money-balance">500</span></div>
+            <div>总收入: $<span id="total-income">0</span></div>
+            <div>总支出: $<span id="total-expense">0</span></div>
+          </div>
+        </div>
         <div style="margin-bottom:6px">
           <label for="passenger-rate" style="font-size:12px">每秒乘客数: </label>
           <button id="passenger-rate-decrease" style="font-size:12px; width:20px; height:20px; padding:0; margin:0 2px;">➖</button>
@@ -33,8 +45,8 @@
           <span id="passenger-rate-value" style="font-size:12px">1</span>
         </div>
         <div style="margin-bottom:6px">
-          <button id="btn-add-train" style="font-size:12px" title="为当前线路添加列车">+ 列车</button>
-          <button id="btn-capacity" style="font-size:12px" title="增加当前线路所有列车的载客量">+ 载客量</button>
+          <button id="btn-add-train" style="font-size:12px" title="为当前线路添加列车">+ 列车 ($<span id="train-cost">100</span>)</button>
+          <button id="btn-capacity" style="font-size:12px" title="增加当前线路所有列车的载客量">+ 载客量 ($<span id="capacity-cost">20</span>)</button>
         </div>
         <div id="lines-panel" style="max-width: 220px; text-align:left; background: rgba(0,0,0,0.2); padding:6px; border-radius:6px">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px">
