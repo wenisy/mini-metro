@@ -1,0 +1,379 @@
+import type { Vec2, Station, Line, Train, Shape } from './types.js'
+import { state, total, isTransferStation, getStationLineCount } from './game-state.js'
+import { smartAttachment, segmentDeletion } from './smart-attachment.js'
+
+// 相机类
+export class Camera {
+  pos: Vec2 = { x: 0, y: 0 }
+  scale = 1
+  
+  toScreen(p: Vec2): Vec2 {
+    return { x: (p.x - this.pos.x) * this.scale, y: (p.y - this.pos.y) * this.scale }
+  }
+  
+  toWorld(p: Vec2): Vec2 {
+    return { x: p.x / this.scale + this.pos.x, y: p.y / this.scale + this.pos.y }
+  }
+}
+
+// 绘制站点
+export function drawStation(ctx: CanvasRenderingContext2D, s: Station): void {
+  ctx.save()
+  ctx.translate(s.pos.x, s.pos.y)
+
+  const baseSize = s.size === 'small' ? 8 : s.size === 'medium' ? 12 : 16
+  const capacityRadius = baseSize + 6
+
+  ctx.lineWidth = 2
+  ctx.strokeStyle = '#fff'
+  ctx.fillStyle = '#111'
+
+  // 绘制站点图形
+  switch (s.shape) {
+    case 'circle':
+      ctx.beginPath()
+      ctx.arc(0, 0, baseSize, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.stroke()
+      break
+    case 'triangle':
+      const triangleSize = baseSize * 1.2
+      ctx.beginPath()
+      ctx.moveTo(0, -triangleSize)
+      ctx.lineTo(triangleSize, triangleSize * 0.8)
+      ctx.lineTo(-triangleSize, triangleSize * 0.8)
+      ctx.closePath()
+      ctx.fill()
+      ctx.stroke()
+      break
+    case 'square':
+      ctx.beginPath()
+      ctx.rect(-baseSize, -baseSize, baseSize * 2, baseSize * 2)
+      ctx.fill()
+      ctx.stroke()
+      break
+    case 'star':
+      drawStar(ctx, 0, 0, 5, baseSize * 1.2, baseSize * 0.6)
+      ctx.fill()
+      ctx.stroke()
+      break
+    case 'heart':
+      drawHeart(ctx, 0, 0, baseSize)
+      ctx.fill()
+      ctx.stroke()
+      break
+  }
+
+  // 绘制容量可视化圆圈
+  const totalPassengers = total(s.queueBy)
+  const fillRatio = Math.min(totalPassengers / s.capacity, 1)
+
+  // 外圈（空心）
+  ctx.strokeStyle = '#666'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(0, 0, capacityRadius, 0, Math.PI * 2)
+  ctx.stroke()
+
+  // 内圈（实心，根据乘客数量）
+  if (fillRatio > 0) {
+    ctx.fillStyle = fillRatio > 0.8 ? '#ff6b6b' : fillRatio > 0.6 ? '#ffa726' : '#66bb6a'
+    ctx.beginPath()
+    ctx.arc(0, 0, capacityRadius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * fillRatio)
+    ctx.lineTo(0, 0)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  // 显示容量数字
+  ctx.fillStyle = '#fff'
+  ctx.font = '10px system-ui'
+  ctx.textAlign = 'center'
+  ctx.fillText(`${totalPassengers}/${s.capacity}`, 0, capacityRadius + 16)
+  
+  // 换乘站标识
+  if (isTransferStation(s.id)) {
+    const lineCount = getStationLineCount(s.id)
+    ctx.fillStyle = '#ffd700' // 金色
+    ctx.font = '8px system-ui'
+    ctx.fillText(`换乘(${lineCount})`, 0, capacityRadius + 28)
+  }
+
+  // 显示乘客队列详情
+  if (totalPassengers > 0) {
+    ctx.textAlign = 'left'
+    let yOffset = -capacityRadius - 20
+    const shapes: Shape[] = ['circle', 'triangle', 'square', 'star', 'heart']
+    const shapeSymbols = { circle: '●', triangle: '▲', square: '■', star: '★', heart: '♥' }
+
+    shapes.forEach(shape => {
+      if (s.queueBy[shape] > 0) {
+        ctx.fillStyle = shape === 'circle' ? '#4fc3f7' : 
+                       shape === 'triangle' ? '#81c784' : 
+                       shape === 'square' ? '#ffb74d' : 
+                       shape === 'star' ? '#ffd54f' : '#f48fb1'
+        ctx.fillText(`${shapeSymbols[shape]}${s.queueBy[shape]}`, capacityRadius + 8, yOffset)
+        yOffset += 12
+      }
+    })
+  }
+
+  ctx.restore()
+}
+
+// 绘制五角星
+function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, spikes: number, outerRadius: number, innerRadius: number): void {
+  let rot = Math.PI / 2 * 3
+  let x = cx
+  let y = cy
+  const step = Math.PI / spikes
+
+  ctx.beginPath()
+  ctx.moveTo(cx, cy - outerRadius)
+
+  for (let i = 0; i < spikes; i++) {
+    x = cx + Math.cos(rot) * outerRadius
+    y = cy + Math.sin(rot) * outerRadius
+    ctx.lineTo(x, y)
+    rot += step
+
+    x = cx + Math.cos(rot) * innerRadius
+    y = cy + Math.sin(rot) * innerRadius
+    ctx.lineTo(x, y)
+    rot += step
+  }
+
+  ctx.lineTo(cx, cy - outerRadius)
+  ctx.closePath()
+}
+
+// 绘制心形
+function drawHeart(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number): void {
+  ctx.beginPath()
+  const topCurveHeight = size * 0.3
+  ctx.moveTo(cx, cy + topCurveHeight)
+
+  // 左半边
+  ctx.bezierCurveTo(
+    cx - size, cy - topCurveHeight,
+    cx - size, cy - size * 0.8,
+    cx, cy - size * 0.8
+  )
+
+  // 右半边
+  ctx.bezierCurveTo(
+    cx + size, cy - size * 0.8,
+    cx + size, cy - topCurveHeight,
+    cx, cy + topCurveHeight
+  )
+
+  ctx.closePath()
+}
+
+// 绘制线路
+export function drawLine(ctx: CanvasRenderingContext2D, line: Line): void {
+  const pts = line.stations.map(id => state.stations.find(s => s.id === id)!.pos)
+  ctx.save()
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = line.color
+  ctx.lineWidth = 6
+  ctx.beginPath()
+  pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))
+  ctx.stroke()
+  ctx.restore()
+}
+
+// 绘制列车
+export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
+  const line = state.lines.find(l => l.id === t.lineId)!
+  if (!line || line.stations.length < 2) return
+
+  let nextIndex: number
+  if (t.dir > 0) {
+    nextIndex = Math.min(t.atIndex + 1, line.stations.length - 1)
+  } else {
+    nextIndex = Math.max(t.atIndex - 1, 0)
+  }
+
+  const a = state.stations.find(s => s.id === line.stations[t.atIndex])!.pos
+  const b = state.stations.find(s => s.id === line.stations[nextIndex])!.pos
+  const x = a.x + (b.x - a.x) * t.t
+  const y = a.y + (b.y - a.y) * t.t
+  
+  ctx.save()
+  ctx.fillStyle = '#fff'
+  ctx.beginPath()
+  ctx.arc(x, y, 5, 0, Math.PI * 2)
+  ctx.fill()
+  
+  // 显示列车内乘客
+  const totalP = total(t.passengersBy)
+  if (totalP > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'
+    ctx.fillRect(x - 6, y + 7, Math.min(12, totalP * 2), 2)
+  }
+  
+  // 停车指示器
+  if (t.dwell > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.3)'
+    ctx.fillRect(x - 6, y + 10, 12 * (t.dwell / 0.8), 2)
+  }
+  
+  ctx.restore()
+}
+
+// 绘制智能吸附反馈
+export function drawSmartAttachmentFeedback(ctx: CanvasRenderingContext2D): void {
+  if (!smartAttachment.isDraggingLine || !smartAttachment.activeCandidate) return
+  
+  const candidate = smartAttachment.activeCandidate
+  const station = candidate.station
+  const intensity = smartAttachment.highlightIntensity
+  
+  ctx.save()
+  
+  // 动态高亮目标站点
+  const highlightColor = `rgba(0, 255, 136, ${intensity})`
+  ctx.strokeStyle = highlightColor
+  ctx.lineWidth = 3 + intensity * 2
+  ctx.setLineDash([5, 5])
+  ctx.beginPath()
+  ctx.arc(station.pos.x, station.pos.y, 25 + intensity * 5, 0, Math.PI * 2)
+  ctx.stroke()
+  
+  // 绘制吸附预览线
+  if (smartAttachment.currentDragPos) {
+    ctx.strokeStyle = highlightColor
+    ctx.lineWidth = 2 + intensity
+    ctx.setLineDash([3, 3])
+    ctx.beginPath()
+    ctx.moveTo(smartAttachment.currentDragPos.x, smartAttachment.currentDragPos.y)
+    ctx.lineTo(station.pos.x, station.pos.y)
+    ctx.stroke()
+    
+    // 绘制投影点
+    ctx.fillStyle = highlightColor
+    ctx.beginPath()
+    ctx.arc(candidate.projectionPoint.x, candidate.projectionPoint.y, 4 + intensity * 2, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  
+  // 绘制拖拽指示器
+  if (smartAttachment.currentDragPos) {
+    ctx.fillStyle = `rgba(0, 255, 136, ${0.3 + intensity * 0.2})`
+    ctx.beginPath()
+    ctx.arc(smartAttachment.currentDragPos.x, smartAttachment.currentDragPos.y, 8 + intensity * 2, 0, Math.PI * 2)
+    ctx.fill()
+    
+    ctx.strokeStyle = highlightColor
+    ctx.lineWidth = 2
+    ctx.setLineDash([])
+    ctx.beginPath()
+    ctx.arc(smartAttachment.currentDragPos.x, smartAttachment.currentDragPos.y, 8 + intensity * 2, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  
+  // 绘制动画效果
+  for (const anim of smartAttachment.animations) {
+    if (anim.type === 'attachment') {
+      const alpha = 1 - anim.progress
+      ctx.strokeStyle = `rgba(0, 255, 136, ${alpha})`
+      ctx.lineWidth = 3
+      ctx.setLineDash([])
+      ctx.beginPath()
+      ctx.arc(anim.to.x, anim.to.y, 20 * anim.progress, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+  }
+  
+  ctx.restore()
+}
+
+// 绘制线路段删除反馈
+export function drawSegmentDeletionFeedback(ctx: CanvasRenderingContext2D): void {
+  if (!segmentDeletion.deleteMode || !segmentDeletion.hoveredSegment) return
+
+  const segment = segmentDeletion.hoveredSegment
+  const startStation = state.stations.find(s => s.id === segment.startStationId)
+  const endStation = state.stations.find(s => s.id === segment.endStationId)
+
+  if (!startStation || !endStation) return
+
+  ctx.save()
+
+  // 高亮要删除的线段
+  ctx.strokeStyle = '#ff4757'
+  ctx.lineWidth = 8
+  ctx.setLineDash([10, 5])
+  ctx.beginPath()
+  ctx.moveTo(startStation.pos.x, startStation.pos.y)
+  ctx.lineTo(endStation.pos.x, endStation.pos.y)
+  ctx.stroke()
+
+  // 在线段中点显示删除图标
+  const midX = (startStation.pos.x + endStation.pos.x) / 2
+  const midY = (startStation.pos.y + endStation.pos.y) / 2
+
+  // 删除图标背景
+  ctx.fillStyle = 'rgba(255, 71, 87, 0.9)'
+  ctx.beginPath()
+  ctx.arc(midX, midY, 12, 0, Math.PI * 2)
+  ctx.fill()
+
+  // 删除图标（X）
+  ctx.strokeStyle = '#fff'
+  ctx.lineWidth = 3
+  ctx.setLineDash([])
+  ctx.beginPath()
+  ctx.moveTo(midX - 6, midY - 6)
+  ctx.lineTo(midX + 6, midY + 6)
+  ctx.moveTo(midX + 6, midY - 6)
+  ctx.lineTo(midX - 6, midY + 6)
+  ctx.stroke()
+
+  ctx.restore()
+}
+
+// 主渲染函数
+export function render(ctx: CanvasRenderingContext2D, camera: Camera, canvas: HTMLCanvasElement, interaction: any): void {
+  ctx.save()
+  ctx.setTransform(camera.scale, 0, 0, camera.scale, -camera.pos.x * camera.scale, -camera.pos.y * camera.scale)
+
+  // 清屏
+  ctx.fillStyle = '#111'
+  ctx.fillRect(camera.pos.x, camera.pos.y, canvas.width / camera.scale, canvas.height / camera.scale)
+
+  // 绘制线路
+  state.lines.forEach(l => drawLine(ctx, l))
+
+  // 绘制预览线路
+  if (interaction.drawingFrom && interaction.previewTo) {
+    ctx.save()
+    ctx.lineJoin = 'round'
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = '#aaa'
+    ctx.lineWidth = 4
+    ctx.beginPath()
+    const a = interaction.drawingFrom.pos
+    ctx.moveTo(a.x, a.y)
+    const b = interaction.previewTo
+    ctx.lineTo(b.x, b.y)
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  // 绘制智能吸附反馈
+  drawSmartAttachmentFeedback(ctx)
+
+  // 绘制线路段删除反馈
+  drawSegmentDeletionFeedback(ctx)
+
+  // 绘制站点
+  state.stations.forEach(s => drawStation(ctx, s))
+
+  // 绘制列车
+  state.trains.forEach(t => drawTrain(ctx, t))
+
+  ctx.restore()
+}
