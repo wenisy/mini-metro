@@ -76,6 +76,18 @@
           </div>
         </div>
 
+        <!-- 数据保存面板 -->
+        <div style="margin-bottom:8px; background: rgba(0,0,0,0.3); padding:8px; border-radius:6px; border: 1px solid rgba(255,255,255,0.1);">
+          <div style="margin-bottom:6px;">
+            <strong style="font-size:13px; color:#ff9800;">💾 数据管理</strong>
+          </div>
+
+          <div style="display:flex; gap:4px;">
+            <button id="btn-export-data" style="font-size:11px; flex:1; padding:4px; background:#2196F3; color:#fff; border:none; border-radius:3px; cursor:pointer;" title="导出游戏数据到文件">📤 导出数据</button>
+            <button id="btn-import-data" style="font-size:11px; flex:1; padding:4px; background:#FF9800; color:#fff; border:none; border-radius:3px; cursor:pointer;" title="从文件导入游戏数据">📥 导入数据</button>
+          </div>
+        </div>
+
         <!-- 游戏信息面板 -->
         <div style="margin-bottom:8px; background: rgba(0,0,0,0.3); padding:8px; border-radius:6px; border: 1px solid rgba(255,255,255,0.1);">
           <div style="margin-bottom:6px;">
@@ -117,16 +129,6 @@
             </div>
           </div>
 
-          <!-- 列车管理 -->
-          <div style="margin-bottom:0;">
-            <div style="margin-bottom:4px;">
-              <strong style="font-size:11px; color:#fbbf24;">🚂 列车管理</strong>
-            </div>
-            <div style="display:flex; gap:4px;">
-              <button id="btn-add-train" style="font-size:10px; flex:1; padding:4px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;" title="为当前线路添加列车">+ 列车<br>($<span id="train-cost">100</span>)</button>
-              <button id="btn-capacity" style="font-size:10px; flex:1; padding:4px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;" title="增加当前线路所有列车的载客量">+ 载客量<br>($<span id="capacity-cost">20</span>)</button>
-            </div>
-          </div>
         </div>
 
         <!-- 帮助提示 -->

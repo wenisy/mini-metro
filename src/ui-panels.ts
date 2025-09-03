@@ -1,4 +1,4 @@
-import { state, economy, priceConfig, transactions, total } from './game-state.js'
+import { state, economy, transactions, total } from './game-state.js'
 
 // 更新财务面板和乘客统计
 export function updateFinancialPanel(): void {
@@ -23,16 +23,6 @@ export function updateFinancialPanel(): void {
   // 更新乘客统计
   updatePassengerStats()
 
-  // 更新按钮价格显示
-  const trainCostElement = document.getElementById('train-cost')
-  const capacityCostElement = document.getElementById('capacity-cost')
-
-  if (trainCostElement) trainCostElement.textContent = priceConfig.newTrainCost.toString()
-  if (capacityCostElement) {
-    const currentLineTrains = state.currentLineId ? state.trains.filter(t => t.lineId === state.currentLineId).length : 0
-    const totalCost = priceConfig.trainCapacityUpgradeCost * Math.max(1, currentLineTrains)
-    capacityCostElement.textContent = totalCost.toString()
-  }
 
   // 更新按钮状态（启用/禁用）
   updateButtonStates()
@@ -78,31 +68,11 @@ export function updateGameStats(): void {
 }
 
 function updateButtonStates(): void {
-  const addTrainBtn = document.getElementById('btn-add-train') as HTMLButtonElement
-  const capacityBtn = document.getElementById('btn-capacity') as HTMLButtonElement
   const autoBtn = document.getElementById('toggle-auto') as HTMLButtonElement
   const spawnBtn = document.getElementById('spawn-one') as HTMLButtonElement
   const deleteBtn = document.getElementById('toggle-delete-mode') as HTMLButtonElement
   const infiniteBtn = document.getElementById('toggle-infinite-mode') as HTMLButtonElement
 
-  // 更新列车相关按钮
-  if (addTrainBtn) {
-    const canAffordTrain = canAfford(priceConfig.newTrainCost) && state.currentLineId !== null
-    addTrainBtn.disabled = !canAffordTrain
-    addTrainBtn.style.opacity = canAffordTrain ? '1' : '0.5'
-    addTrainBtn.style.cursor = canAffordTrain ? 'pointer' : 'not-allowed'
-    addTrainBtn.style.backgroundColor = canAffordTrain ? '#666' : '#444'
-  }
-
-  if (capacityBtn) {
-    const currentLineTrains = state.currentLineId ? state.trains.filter(t => t.lineId === state.currentLineId).length : 0
-    const totalCost = priceConfig.trainCapacityUpgradeCost * Math.max(1, currentLineTrains)
-    const canAffordCapacity = canAfford(totalCost) && state.currentLineId !== null
-    capacityBtn.disabled = !canAffordCapacity
-    capacityBtn.style.opacity = canAffordCapacity ? '1' : '0.5'
-    capacityBtn.style.cursor = canAffordCapacity ? 'pointer' : 'not-allowed'
-    capacityBtn.style.backgroundColor = canAffordCapacity ? '#666' : '#444'
-  }
 
   // 更新设置按钮
   if (autoBtn) {
@@ -127,4 +97,3 @@ function updateButtonStates(): void {
 
 // 导入segmentDeletion以避免循环依赖
 import { segmentDeletion } from './smart-attachment.js'
-import { canAfford } from './game-state.js'

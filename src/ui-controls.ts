@@ -1,5 +1,6 @@
-import { state, addTrain, upgradeTrainCapacity, priceConfig, canAfford, toggleInfiniteMode, addStationSafely, economy } from './game-state.js'
+import { state, toggleInfiniteMode, addStationSafely } from './game-state.js'
 import { enableSegmentDeletionMode, disableSegmentDeletionMode, segmentDeletion } from './smart-attachment.js'
+import { exportGameData, importGameData, createFileInput } from './data-manager.js'
 
 // 设置UI控件
 export function setupUIControls(): void {
@@ -102,49 +103,6 @@ export function setupUIControls(): void {
   const btnSpeed2x = document.getElementById('btn-speed-2x') as HTMLButtonElement
   const btnSpeed3x = document.getElementById('btn-speed-3x') as HTMLButtonElement
 
-  // 列车和容量控制按钮
-  const btnAddTrain = document.getElementById('btn-add-train') as HTMLButtonElement
-  const btnCap = document.getElementById('btn-capacity') as HTMLButtonElement
-
-  if (btnAddTrain) {
-    btnAddTrain.onclick = () => {
-      if (state.currentLineId == null) {
-        alert('请先选择一条线路')
-        return
-      }
-
-      if (addTrain(state.currentLineId)) {
-        // 导入updateFinancialPanel以避免循环依赖
-        import('./ui-panels.js').then(({ updateFinancialPanel }) => {
-          updateFinancialPanel()
-        })
-        console.log('成功添加列车')
-      } else {
-        alert(`余额不足！需要 $${priceConfig.newTrainCost}，当前余额 $${economy.balance}`)
-      }
-    }
-  }
-
-  if (btnCap) {
-    btnCap.onclick = () => {
-      if (state.currentLineId == null) {
-        alert('请先选择一条线路')
-        return
-      }
-
-      if (upgradeTrainCapacity(state.currentLineId)) {
-        // 导入updateFinancialPanel以避免循环依赖
-        import('./ui-panels.js').then(({ updateFinancialPanel }) => {
-          updateFinancialPanel()
-        })
-        console.log('成功升级列车容量')
-      } else {
-        const currentLineTrains = state.trains.filter(t => t.lineId === state.currentLineId).length
-        const totalCost = priceConfig.trainCapacityUpgradeCost * currentLineTrains
-        alert(`余额不足！需要 $${totalCost}，当前余额 $${economy.balance}`)
-      }
-    }
-  }
 
   // 游戏速度控制
   function updateSpeedButtons() {
@@ -193,35 +151,52 @@ export function setupUIControls(): void {
   import('./ui-panels.js').then(({ updateFinancialPanel }) => {
     updateFinancialPanel()
   })
+
+  // 数据管理按钮
+  const btnExportData = document.getElementById('btn-export-data') as HTMLButtonElement
+  const btnImportData = document.getElementById('btn-import-data') as HTMLButtonElement
+
+  if (btnExportData) {
+    btnExportData.onclick = () => {
+      exportGameData()
+    }
+  }
+
+  if (btnImportData) {
+    btnImportData.onclick = () => {
+      const fileInput = createFileInput()
+      fileInput.onchange = (event) => {
+        const target = event.target as HTMLInputElement
+        const file = target.files?.[0]
+        if (file) {
+          importGameData(file).then(() => {
+            // 导入成功后更新所有UI面板
+            import('./ui-panels.js').then(({ updateFinancialPanel, updateGameStats }) => {
+              updateFinancialPanel()
+              updateGameStats()
+            })
+            import('./ui-lines.js').then(({ renderLinesPanel }) => {
+              renderLinesPanel()
+            })
+            // 重新初始化按钮状态
+            updateButtonStates()
+          }).catch((error) => {
+            console.error('导入数据失败:', error)
+          })
+        }
+      }
+      fileInput.click()
+    }
+  }
 }
 
 // 按钮状态更新函数
 function updateButtonStates(): void {
-  const addTrainBtn = document.getElementById('btn-add-train') as HTMLButtonElement
-  const capacityBtn = document.getElementById('btn-capacity') as HTMLButtonElement
   const autoBtn = document.getElementById('toggle-auto') as HTMLButtonElement
   const spawnBtn = document.getElementById('spawn-one') as HTMLButtonElement
   const deleteBtn = document.getElementById('toggle-delete-mode') as HTMLButtonElement
   const infiniteBtn = document.getElementById('toggle-infinite-mode') as HTMLButtonElement
 
-  // 更新列车相关按钮
-  if (addTrainBtn) {
-    const canAffordTrain = canAfford(priceConfig.newTrainCost) && state.currentLineId !== null
-    addTrainBtn.disabled = !canAffordTrain
-    addTrainBtn.style.opacity = canAffordTrain ? '1' : '0.5'
-    addTrainBtn.style.cursor = canAffordTrain ? 'pointer' : 'not-allowed'
-    addTrainBtn.style.backgroundColor = canAffordTrain ? '#666' : '#444'
-  }
-
-  if (capacityBtn) {
-    const currentLineTrains = state.currentLineId ? state.trains.filter(t => t.lineId === state.currentLineId).length : 0
-    const totalCost = priceConfig.trainCapacityUpgradeCost * Math.max(1, currentLineTrains)
-    const canAffordCapacity = canAfford(totalCost) && state.currentLineId !== null
-    capacityBtn.disabled = !canAffordCapacity
-    capacityBtn.style.opacity = canAffordCapacity ? '1' : '0.5'
-    capacityBtn.style.cursor = canAffordCapacity ? 'pointer' : 'not-allowed'
-    capacityBtn.style.backgroundColor = canAffordCapacity ? '#666' : '#444'
-  }
 
   // 更新设置按钮
   if (autoBtn) {

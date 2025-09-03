@@ -73,10 +73,10 @@ export const economy: EconomyState = {
 export const transactions: Transaction[] = []
 export const moneyEffects: MoneyChangeEffect[] = []
 
-let nextTransactionId = 1
+export let nextTransactionId = 1
 let nextEffectId = 1
 
-let nextId = 1
+export let nextId = 1
 
 // 工具函数
 export function zeroByShape(): Record<Shape, number> {
@@ -563,4 +563,10 @@ export function spawnInitialWorld(): void {
   if (firstLine) {
     state.currentLineId = firstLine.id
   }
+}
+
+// 设置ID计数器（用于数据导入）
+export function setNextIds(newNextId: number, newNextTransactionId: number): void {
+  nextId = newNextId
+  nextTransactionId = newNextTransactionId
 }
