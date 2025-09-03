@@ -302,32 +302,7 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
   ctx.closePath()
   ctx.stroke()
 
-  // 绘制载客进度条
-  if (loadRatio > 0) {
-    const progressBarConfig = trainVisualConfig.progressBar
-    const progressWidth = (effectiveLength - progressBarConfig.margin * 2) * loadRatio
-    const progressY = y - halfWidth - progressBarConfig.height - 2 // 调整位置到列车上方
-
-    // 进度条背景
-    ctx.fillStyle = progressBarConfig.backgroundColor
-    ctx.fillRect(
-      x - halfLength + progressBarConfig.margin,
-      progressY,
-      effectiveLength - progressBarConfig.margin * 2,
-      progressBarConfig.height
-    )
-
-    // 进度条前景
-    if (progressWidth > 0) {
-      ctx.fillStyle = progressBarConfig.foregroundColor
-      ctx.fillRect(
-        x - halfLength + progressBarConfig.margin,
-        progressY,
-        progressWidth,
-        progressBarConfig.height
-      )
-    }
-  }
+  // 载客进度条已移除 - 车身颜色已经能够表示载客状态
 
   // 显示列车内乘客数量
   if (totalP > 0) {
