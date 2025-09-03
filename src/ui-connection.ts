@@ -1,4 +1,4 @@
-import { state, removeLine, getExtendableLines, addLine, COLORS, calculateNewLineCost, calculateExtensionCost, canAfford as _canAfford, economy } from './game-state.js'
+import { state, removeLine, getExtendableLines, addLine, calculateNewLineCost, calculateExtensionCost, canAfford as _canAfford, economy } from './game-state.js'
 import type { Vec2 } from './types.js'
 
 // 计算菜单位置（固定在屏幕中心）
@@ -45,8 +45,7 @@ export function showLinkChooser(from: any, to: any, camera?: any): void {
         // 只能新建线路，检查余额后直接执行
         const newLineCost = calculateNewLineCost()
         if (_canAfford(newLineCost)) {
-          const color = COLORS[(state.lines.length) % COLORS.length]
-          const newLine = addLine(color, from, to)
+          const newLine = addLine(null, from, to)
           if (newLine) {
             state.currentLineId = newLine.id
             // 导入renderLinesPanel和updateFinancialPanel以避免循环依赖
@@ -207,8 +206,7 @@ function showLinkChooserUI(from: any, to: any, existing: any = null, extendableL
     newBtn.onclick = () => {
       const newLineCost = calculateNewLineCost()
       if (_canAfford(newLineCost)) {
-        const color = COLORS[(state.lines.length) % COLORS.length]
-        const newLine = addLine(color, from, to)
+        const newLine = addLine(null, from, to)
         if (newLine) {
           state.currentLineId = newLine.id
           // 导入renderLinesPanel和updateFinancialPanel以避免循环依赖

@@ -1,7 +1,23 @@
 import type { GameState, Station, Line, Shape, Vec2, EconomyState, PriceConfig, Transaction, MoneyChangeEffect } from './types.js'
 
-// 游戏常量
-export const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22']
+// 游戏常量 - 扩展到15种颜色，支持最多15条线路
+export const COLORS = [
+  '#e74c3c', // 红色
+  '#3498db', // 蓝色
+  '#2ecc71', // 绿色
+  '#f1c40f', // 黄色
+  '#9b59b6', // 紫色
+  '#e67e22', // 橙色
+  '#1abc9c', // 青色
+  '#e91e63', // 粉色
+  '#9c27b0', // 深紫色
+  '#00bcd4', // 青蓝色
+  '#4caf50', // 深绿色
+  '#ff5722', // 深橙色
+  '#607d8b', // 灰蓝色
+  '#795548', // 棕色
+  '#3f51b5'  // 靛蓝色
+]
 export const DWELL_TIME = 0.8
 export const QUEUE_FAIL = 12
 export const TRANSFER_STATION_EXTRA_DWELL = 0.4
@@ -210,6 +226,22 @@ export function nearestStationWithin(p: Vec2, radius: number): Station | null {
 }
 
 // 线路管理
+// 获取可用的颜色（不与现有线路重复）
+export function getAvailableColor(): string {
+  const usedColors = new Set(state.lines.map(line => line.color))
+
+  // 查找第一个未使用的颜色
+  for (const color of COLORS) {
+    if (!usedColors.has(color)) {
+      return color
+    }
+  }
+
+  // 如果所有颜色都用完了，返回第一个颜色（虽然按理说不会发生，因为我们限制了15条线路）
+  console.warn('所有颜色都已使用，返回第一个颜色')
+  return COLORS[0]
+}
+
 export function getNextAvailableLineNumber(): number {
   const existingNumbers = state.lines
     .map(l => l.name.match(/(\d+)号线/))
@@ -225,7 +257,14 @@ export function getNextAvailableLineNumber(): number {
   return 1
 }
 
-export function addLine(color: string, a: Station, b: Station, name?: string, skipPayment: boolean = false): Line | null {
+export function addLine(color: string | null, a: Station, b: Station, name?: string, skipPayment: boolean = false): Line | null {
+  // 检查线路数量限制
+  if (state.lines.length >= 15) {
+    console.log(`❌ 无法创建新线路: 已达到最大线路数量限制 (15条)`)
+    alert('已达到最大线路数量限制 (15条)，无法创建更多线路')
+    return null
+  }
+
   const cost = calculateNewLineCost()
 
   // 检查是否需要付费且余额是否足够
@@ -243,11 +282,14 @@ export function addLine(color: string, a: Station, b: Station, name?: string, sk
     spendMoney(cost, `建设新线路`, midPoint)
   }
 
+  // 如果没有指定颜色，自动选择可用颜色
+  const finalColor = color || getAvailableColor()
+
   const lineName = name ?? `${getNextAvailableLineNumber()}号线`
   const l: Line = {
     id: nextId++,
     name: lineName,
-    color,
+    color: finalColor,
     stations: [a.id, b.id],
     stats: {
       totalPassengersTransported: 0,

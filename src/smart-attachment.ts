@@ -505,7 +505,7 @@ function splitLineAtSegment(line: any, segment: LineSegment): boolean {
   }
 
   // 动态导入以避免循环依赖
-  import('./game-state.js').then(({ COLORS, addLine, removeLine, getNextAvailableLineNumber }) => {
+  import('./game-state.js').then(({ addLine, removeLine, getNextAvailableLineNumber }) => {
     // 智能命名：为分割后的线路生成合适的名称
     const originalName = line.name
     const isNumberedLine = /(\d+)号线/.test(originalName)
@@ -543,8 +543,7 @@ function splitLineAtSegment(line: any, segment: LineSegment): boolean {
 
     // 创建第二条新线路（使用不同颜色）
     const secondStations = secondPart.map((id: number) => state.stations.find(s => s.id === id)!)
-    const newColor = COLORS[(state.lines.length) % COLORS.length]
-    const newLine2 = addLine(newColor, secondStations[0], secondStations[1], newLine2Name)
+    const newLine2 = addLine(null, secondStations[0], secondStations[1], newLine2Name)
 
     if (!newLine2) {
       console.error('无法创建第二条新线路')
