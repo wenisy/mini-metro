@@ -312,12 +312,6 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
     ctx.fillText(`${totalP}/${t.capacity}`, x, y + 1)
   }
 
-  // 停车指示器
-  if (t.dwell > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,0.8)'
-    ctx.fillRect(x - halfLength, y + halfWidth + 3, effectiveLength * (t.dwell / 0.8), 3)
-  }
-
   ctx.restore()
 }
 
