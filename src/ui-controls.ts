@@ -60,68 +60,30 @@ function updateButtonStates(): void {
   }
 }
 
-// 计算菜单的最佳位置（基于两个站点的中点）
+// 计算菜单位置（固定在屏幕中心）
 function calculateMenuPosition(fromPos: Vec2, toPos: Vec2, camera: any): { x: number, y: number } {
-  const canvas = document.getElementById('game') as HTMLCanvasElement
-  if (!canvas) {
-    console.warn('Canvas元素未找到，使用默认位置')
-    return { x: window.innerWidth / 2 - 110, y: window.innerHeight / 2 - 60 }
-  }
-
-  // 计算两个站点的中点
-  const midPoint = {
-    x: (fromPos.x + toPos.x) / 2,
-    y: (fromPos.y + toPos.y) / 2
-  }
-
-  // 将世界坐标转换为屏幕坐标（相对于canvas）
-  const screenPos = camera.toScreen(midPoint)
-
-  // 获取canvas在页面中的位置
-  const canvasRect = canvas.getBoundingClientRect()
-
-  // 转换为页面坐标，添加滚动偏移
-  const pageX = canvasRect.left + screenPos.x + window.scrollX
-  const pageY = canvasRect.top + screenPos.y + window.scrollY
-
   // 菜单尺寸估算
-  const menuWidth = 240  // 增加宽度以适应新的按钮文本
-  const menuHeight = 140 // 增加高度以适应多个按钮
-  const offset = 25 // 距离中点的偏移
+  const menuWidth = 240
+  const menuHeight = 140
 
   // 获取视口尺寸
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
 
-  // 计算初始位置（优先放在中点右下方）
-  let x = pageX + offset
-  let y = pageY + offset
+  // 计算屏幕中心位置
+  const centerX = viewportWidth / 2 - menuWidth / 2
+  const centerY = viewportHeight / 2 - menuHeight / 2
 
-  // 智能边界检测和调整
-  // 检查右边界
-  if (x + menuWidth > viewportWidth - 10) {
-    x = pageX - menuWidth - offset // 移到左边
-    // 如果左边也放不下，居中显示
-    if (x < 10) {
-      x = Math.max(10, pageX - menuWidth / 2)
-    }
-  }
+  // 确保菜单完全在视口内
+  const x = Math.max(10, Math.min(centerX, viewportWidth - menuWidth - 10))
+  const y = Math.max(10, Math.min(centerY, viewportHeight - menuHeight - 10))
 
-  // 检查下边界
-  if (y + menuHeight > viewportHeight - 10) {
-    y = pageY - menuHeight - offset // 移到上边
-    // 如果上边也放不下，居中显示
-    if (y < 10) {
-      y = Math.max(10, pageY - menuHeight / 2)
-    }
-  }
+  // 使用参数避免TypeScript警告（虽然实际不需要使用）
+  void fromPos;
+  void toPos;
+  void camera;
 
-  // 最终边界检查
-  x = Math.max(10, Math.min(x, viewportWidth - menuWidth - 10))
-  y = Math.max(10, Math.min(y, viewportHeight - menuHeight - 10))
-
-  console.log(`对话框定位: 中点(${midPoint.x.toFixed(1)}, ${midPoint.y.toFixed(1)}) -> 屏幕(${screenPos.x.toFixed(1)}, ${screenPos.y.toFixed(1)}) -> 页面(${x.toFixed(1)}, ${y.toFixed(1)})`)
-
+  console.log(`菜单定位: 屏幕中心 (${x.toFixed(1)}, ${y.toFixed(1)})`)
   return { x, y }
 }
 
