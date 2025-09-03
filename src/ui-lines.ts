@@ -35,8 +35,8 @@ export function renderLinesPanel(): void {
         <button data-line="${l.id}" class="line-select" style="font-size:14px;flex:1;text-align:left;background:none;border:none;color:#fff;cursor:pointer;padding:0;font-weight:bold;" title="选择线路">${l.name}</button>
         <span style="font-size:11px;color:#ccc;">${trainCount}辆</span>
         <div style="display:flex;gap:2px;align-items:center;">
-          <button data-line-add-train="${l.id}" class="line-add-train" style="font-size:11px;color:#4CAF50;border:1px solid #4CAF50;background:none;cursor:pointer;padding:3px 6px;border-radius:3px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;" title="添加列车">+</button>
-          <button data-line-delete="${l.id}" class="line-delete" style="font-size:11px;color:#ff6b6b;border:1px solid #ff6b6b;background:none;cursor:pointer;padding:3px 6px;border-radius:3px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;" title="删除线路">×</button>
+          <button data-line-add-train="${l.id}" class="line-add-train" style="font-size:14px;color:#4CAF50;border:1px solid #4CAF50;background:none;cursor:pointer;padding:0;border-radius:3px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;line-height:1;" title="添加列车">+</button>
+          <button data-line-delete="${l.id}" class="line-delete" style="font-size:14px;color:#ff6b6b;border:1px solid #ff6b6b;background:none;cursor:pointer;padding:0;border-radius:3px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;line-height:1;" title="删除线路">×</button>
         </div>
       </div>
 
