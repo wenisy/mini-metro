@@ -1,6 +1,7 @@
 import type { Vec2, Station, Line, Train, Shape } from './types.js'
 import { state, total, isTransferStation, getStationLineCount, moneyEffects } from './game-state.js'
 import { smartAttachment, segmentDeletion } from './smart-attachment.js'
+import { getTrainDisplayLength, getTrainDisplayColor, getPulseIntensity, trainVisualConfig, getLoadRatio, getTrainShadowIntensity, shouldShowWarning } from './train-visual.js'
 
 // 相机类
 export class Camera {
@@ -184,10 +185,13 @@ export function drawLine(ctx: CanvasRenderingContext2D, line: Line): void {
   ctx.restore()
 }
 
-// 绘制列车
+// 绘制列车（带性能优化）
 export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
   const line = state.lines.find(l => l.id === t.lineId)!
   if (!line || line.stations.length < 2) return
+
+  // 性能优化：检查列车是否在视野内
+  // 这里可以添加视锥剔除逻辑，但为了简化暂时跳过
 
   let nextIndex: number
   if (t.dir > 0) {
@@ -203,11 +207,16 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
 
   ctx.save()
 
-  // 计算列车长度基于载客量
+  // 使用新的视觉系统获取列车属性
+  const trainLength = getTrainDisplayLength(t)
+  const trainColor = getTrainDisplayColor(t)
+  const pulseIntensity = t.visual ? getPulseIntensity(t.visual) : 0
+  const shadowIntensity = getTrainShadowIntensity(t)
+  const showWarning = shouldShowWarning(t)
+
+  // 计算载客状态
   const totalP = total(t.passengersBy)
-  const baseLength = 12
-  const maxLength = 24
-  const trainLength = Math.max(baseLength, Math.min(maxLength, baseLength + (totalP / t.capacity) * (maxLength - baseLength)))
+  const loadRatio = getLoadRatio(t)
 
   // 计算列车方向向量
   const dx = b.x - a.x
@@ -220,14 +229,32 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
   const perpX = -dirY
   const perpY = dirX
 
-  // 列车宽度
-  const trainWidth = 6
+  // 列车宽度（增大宽度让列车更明显）
+  const trainWidth = 10
+
+  // 应用脉冲效果（满载时）
+  const pulseScale = 1 + pulseIntensity * 0.1
+  const effectiveLength = trainLength * pulseScale
+  const effectiveWidth = trainWidth * pulseScale
+  const halfLength = effectiveLength / 2
+  const halfWidth = effectiveWidth / 2
+
+  // 绘制阴影
+  if (shadowIntensity > 0.2) {
+    ctx.fillStyle = `rgba(0, 0, 0, ${shadowIntensity})`
+    ctx.beginPath()
+    const shadowOffset = 2
+    ctx.moveTo(x - dirX * halfLength - perpX * halfWidth + shadowOffset, y - dirY * halfLength - perpY * halfWidth + shadowOffset)
+    ctx.lineTo(x + dirX * halfLength - perpX * halfWidth + shadowOffset, y + dirY * halfLength - perpY * halfWidth + shadowOffset)
+    ctx.lineTo(x + dirX * halfLength + perpX * halfWidth + shadowOffset, y + dirY * halfLength + perpY * halfWidth + shadowOffset)
+    ctx.lineTo(x - dirX * halfLength + perpX * halfWidth + shadowOffset, y - dirY * halfLength + perpY * halfWidth + shadowOffset)
+    ctx.closePath()
+    ctx.fill()
+  }
 
   // 绘制列车主体（矩形）
-  ctx.fillStyle = '#fff'
+  ctx.fillStyle = trainColor
   ctx.beginPath()
-  const halfLength = trainLength / 2
-  const halfWidth = trainWidth / 2
 
   ctx.moveTo(x - dirX * halfLength - perpX * halfWidth, y - dirY * halfLength - perpY * halfWidth)
   ctx.lineTo(x + dirX * halfLength - perpX * halfWidth, y + dirY * halfLength - perpY * halfWidth)
@@ -236,23 +263,57 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
   ctx.closePath()
   ctx.fill()
 
+  // 警告效果（接近满载时的边框闪烁）
+  if (showWarning && pulseIntensity > 0) {
+    ctx.strokeStyle = `rgba(255, 193, 7, ${0.5 + pulseIntensity * 0.5})`
+    ctx.lineWidth = 2
+    ctx.stroke()
+  }
+
   // 绘制列车边框
-  ctx.strokeStyle = '#333'
+  ctx.strokeStyle = trainVisualConfig.capacity.colors.border
   ctx.lineWidth = 1
   ctx.stroke()
 
+  // 绘制载客进度条
+  if (loadRatio > 0) {
+    const progressBarConfig = trainVisualConfig.progressBar
+    const progressWidth = (effectiveLength - progressBarConfig.margin * 2) * loadRatio
+    const progressY = y - halfWidth - progressBarConfig.height - 2 // 调整位置到列车上方
+
+    // 进度条背景
+    ctx.fillStyle = progressBarConfig.backgroundColor
+    ctx.fillRect(
+      x - halfLength + progressBarConfig.margin,
+      progressY,
+      effectiveLength - progressBarConfig.margin * 2,
+      progressBarConfig.height
+    )
+
+    // 进度条前景
+    if (progressWidth > 0) {
+      ctx.fillStyle = progressBarConfig.foregroundColor
+      ctx.fillRect(
+        x - halfLength + progressBarConfig.margin,
+        progressY,
+        progressWidth,
+        progressBarConfig.height
+      )
+    }
+  }
+
   // 显示列车内乘客数量
   if (totalP > 0) {
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'
-    ctx.font = '8px system-ui'
+    ctx.fillStyle = 'rgba(0,0,0,0.8)'
+    ctx.font = 'bold 9px system-ui'
     ctx.textAlign = 'center'
-    ctx.fillText(totalP.toString(), x, y + 1)
+    ctx.fillText(`${totalP}/${t.capacity}`, x, y + 1)
   }
 
   // 停车指示器
   if (t.dwell > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,0.6)'
-    ctx.fillRect(x - trainLength / 2, y + trainWidth / 2 + 2, trainLength * (t.dwell / 0.8), 2)
+    ctx.fillStyle = 'rgba(255,255,255,0.8)'
+    ctx.fillRect(x - halfLength, y + halfWidth + 3, effectiveLength * (t.dwell / 0.8), 3)
   }
 
   ctx.restore()
