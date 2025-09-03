@@ -35,9 +35,9 @@ function pointerPos(e: { clientX: number; clientY: number }, canvas: HTMLCanvasE
 }
 
 // Game state stubs
-type Shape = 'circle'|'triangle'|'square'
-function zeroByShape(): Record<Shape, number> { return { circle: 0, triangle: 0, square: 0 } }
-interface Station { id: number; pos: Vec2; shape: Shape; queueBy: Record<Shape, number>; queueTo: Record<number, Record<Shape, number>> }
+type Shape = 'circle'|'triangle'|'square'|'star'|'heart'
+function zeroByShape(): Record<Shape, number> { return { circle: 0, triangle: 0, square: 0, star: 0, heart: 0 } }
+interface Station { id: number; pos: Vec2; shape: Shape; size: 'small'|'medium'|'large'; capacity: number; queueBy: Record<Shape, number>; queueTo: Record<number, Record<Shape, number>> }
 interface Line { id: number; name: string; color: string; stations: number[] }
 interface Train { id: number; lineId: number; atIndex: number; t: number; dir: 1|-1; capacity: number; passengersBy: Record<Shape, number>; passengersTo: Record<number, Record<Shape, number>>; dwell: number }
 
@@ -63,7 +63,7 @@ const COLORS = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22']
 
 const DWELL_TIME = 0.8
 const QUEUE_FAIL = 12
-function total(rec: Record<Shape, number>) { return rec.circle + rec.triangle + rec.square }
+function total(rec: Record<Shape, number>) { return rec.circle + rec.triangle + rec.square + rec.star + rec.heart }
 
 // interaction state for line drawing
 const interaction = {
@@ -73,8 +73,35 @@ const interaction = {
 }
 
 let nextId = 1
-function addStation(pos: Vec2, shape: Station['shape']): Station {
-  const s: Station = { id: nextId++, pos, shape, queueBy: zeroByShape(), queueTo: {} }
+function addStation(pos: Vec2, shape?: Station['shape'], size?: Station['size']): Station {
+  // 如果没有指定shape，随机选择
+  const stationShape = shape || (() => {
+    const shapes: Station['shape'][] = ['circle','triangle','square','star','heart']
+    return shapes[Math.floor(Math.random()*shapes.length)]
+  })()
+
+  // 如果没有指定size，随机选择
+  const stationSize = size || (() => {
+    const sizes: Station['size'][] = ['small','medium','large']
+    const weights = [0.5, 0.3, 0.2] // small:50%, medium:30%, large:20%
+    const rand = Math.random()
+    if (rand < weights[0]) return 'small'
+    if (rand < weights[0] + weights[1]) return 'medium'
+    return 'large'
+  })()
+
+  // 根据大小设置容量
+  const capacity = stationSize === 'small' ? 30 : stationSize === 'medium' ? 60 : 100
+
+  const s: Station = {
+    id: nextId++,
+    pos,
+    shape: stationShape,
+    size: stationSize,
+    capacity,
+    queueBy: zeroByShape(),
+    queueTo: {}
+  }
   state.stations.push(s); return s
 }
 
@@ -164,9 +191,9 @@ function getExtendableLines(from: Station, to: Station): Line[] {
 
 function spawnInitialWorld() {
   // seed stations
-  const s1 = addStation({ x: 120, y: 120 }, 'circle')
-  const s2 = addStation({ x: 320, y: 140 }, 'triangle')
-  addStation({ x: 220, y: 280 }, 'square')
+  const s1 = addStation({ x: 120, y: 120 }, 'circle', 'medium')
+  const s2 = addStation({ x: 320, y: 140 }, 'triangle', 'medium')
+  addStation({ x: 220, y: 280 }, 'square', 'medium')
   // create initial line (1号线)
   const firstLine = addLine(COLORS[0], s1, s2, '1号线')
   state.currentLineId = firstLine.id
@@ -281,10 +308,11 @@ function hideLinkChooser() {
 // simple RNG station spawner with min distance avoidance
 let spawnTimer = 0
 function hitTestStation(p: Vec2): Station | null {
-  const r = 14
   let best: Station | null = null
   let bestD = Infinity
   for (const s of state.stations) {
+    // 根据站点大小设置点击检测半径
+    const r = s.size === 'small' ? 12 : s.size === 'medium' ? 16 : 20
     const d = dist2(s.pos, p)
     if (d < r*r && d < bestD) { bestD = d; best = s }
   }
@@ -299,7 +327,7 @@ function maybeSpawnStations(dt: number) {
 
     for (let tries=0; tries<20; tries++) {
       const pos = { x: 80 + Math.random()*440, y: 80 + Math.random()*640 }
-      const shapes: Station['shape'][] = ['circle','triangle','square']
+      const shapes: Station['shape'][] = ['circle','triangle','square','star','heart']
       const shape = shapes[Math.floor(Math.random()*shapes.length)]
       const minR = 40
       if (state.stations.every(s=> dist2(s.pos, pos) >= minR*minR)) {
@@ -412,37 +440,123 @@ function renderLinesPanel() {
 function drawStation(ctx: CanvasRenderingContext2D, s: Station) {
   ctx.save()
   ctx.translate(s.pos.x, s.pos.y)
+
+  // 根据站点大小设置基础尺寸
+  const baseSize = s.size === 'small' ? 8 : s.size === 'medium' ? 12 : 16
+  const capacityRadius = baseSize + 6
+
   ctx.lineWidth = 2
   ctx.strokeStyle = '#fff'
   ctx.fillStyle = '#111'
+
+  // 绘制站点图形
   switch (s.shape) {
-    case 'circle': ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill(); ctx.stroke(); break
-    case 'triangle': ctx.beginPath(); ctx.moveTo(0,-12); ctx.lineTo(10,8); ctx.lineTo(-10,8); ctx.closePath(); ctx.fill(); ctx.stroke(); break
-    case 'square': ctx.beginPath(); ctx.rect(-10,-10,20,20); ctx.fill(); ctx.stroke(); break
+    case 'circle':
+      ctx.beginPath(); ctx.arc(0,0,baseSize,0,Math.PI*2); ctx.fill(); ctx.stroke(); break
+    case 'triangle':
+      const triangleSize = baseSize * 1.2
+      ctx.beginPath(); ctx.moveTo(0,-triangleSize); ctx.lineTo(triangleSize,triangleSize*0.8); ctx.lineTo(-triangleSize,triangleSize*0.8); ctx.closePath(); ctx.fill(); ctx.stroke(); break
+    case 'square':
+      ctx.beginPath(); ctx.rect(-baseSize,-baseSize,baseSize*2,baseSize*2); ctx.fill(); ctx.stroke(); break
+    case 'star':
+      drawStar(ctx, 0, 0, 5, baseSize*1.2, baseSize*0.6); ctx.fill(); ctx.stroke(); break
+    case 'heart':
+      drawHeart(ctx, 0, 0, baseSize); ctx.fill(); ctx.stroke(); break
   }
 
+  // 绘制容量可视化圆圈
+  const totalPassengers = total(s.queueBy)
+  const fillRatio = Math.min(totalPassengers / s.capacity, 1)
+
+  // 外圈（空心）
+  ctx.strokeStyle = '#666'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(0, 0, capacityRadius, 0, Math.PI * 2)
+  ctx.stroke()
+
+  // 内圈（实心，根据乘客数量）
+  if (fillRatio > 0) {
+    ctx.fillStyle = fillRatio > 0.8 ? '#ff6b6b' : fillRatio > 0.6 ? '#ffa726' : '#66bb6a'
+    ctx.beginPath()
+    ctx.arc(0, 0, capacityRadius, -Math.PI/2, -Math.PI/2 + Math.PI * 2 * fillRatio)
+    ctx.lineTo(0, 0)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  // 显示容量数字
+  ctx.fillStyle = '#fff'
+  ctx.font = '10px system-ui'
+  ctx.textAlign = 'center'
+  ctx.fillText(`${totalPassengers}/${s.capacity}`, 0, capacityRadius + 16)
+
   // Show passenger queue with destination breakdown
-  const totalQ = total(s.queueBy)
-  if (totalQ > 0) {
-    ctx.fillStyle = '#fff'; ctx.font = '10px system-ui'
-
-    // Show total count
-    ctx.fillText(String(totalQ), 12, -12)
-
-    // Show destination breakdown
-    let yOffset = 0
-    const shapes: Shape[] = ['circle', 'triangle', 'square']
-    const shapeSymbols = { circle: '●', triangle: '▲', square: '■' }
+  if (totalPassengers > 0) {
+    ctx.textAlign = 'left'
+    let yOffset = -capacityRadius - 20
+    const shapes: Shape[] = ['circle', 'triangle', 'square', 'star', 'heart']
+    const shapeSymbols = { circle: '●', triangle: '▲', square: '■', star: '★', heart: '♥' }
 
     shapes.forEach(shape => {
       if (s.queueBy[shape] > 0) {
-        ctx.fillStyle = shape === 'circle' ? '#4fc3f7' : shape === 'triangle' ? '#81c784' : '#ffb74d'
-        ctx.fillText(`${shapeSymbols[shape]}${s.queueBy[shape]}`, 12, yOffset)
+        ctx.fillStyle = shape === 'circle' ? '#4fc3f7' : shape === 'triangle' ? '#81c784' : shape === 'square' ? '#ffb74d' : shape === 'star' ? '#ffd54f' : '#f48fb1'
+        ctx.fillText(`${shapeSymbols[shape]}${s.queueBy[shape]}`, capacityRadius + 8, yOffset)
         yOffset += 12
       }
     })
   }
+
   ctx.restore()
+}
+
+// 绘制五角星的辅助函数
+function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, spikes: number, outerRadius: number, innerRadius: number) {
+  let rot = Math.PI / 2 * 3
+  let x = cx
+  let y = cy
+  const step = Math.PI / spikes
+
+  ctx.beginPath()
+  ctx.moveTo(cx, cy - outerRadius)
+
+  for (let i = 0; i < spikes; i++) {
+    x = cx + Math.cos(rot) * outerRadius
+    y = cy + Math.sin(rot) * outerRadius
+    ctx.lineTo(x, y)
+    rot += step
+
+    x = cx + Math.cos(rot) * innerRadius
+    y = cy + Math.sin(rot) * innerRadius
+    ctx.lineTo(x, y)
+    rot += step
+  }
+
+  ctx.lineTo(cx, cy - outerRadius)
+  ctx.closePath()
+}
+
+// 绘制心形的辅助函数
+function drawHeart(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  ctx.beginPath()
+  const topCurveHeight = size * 0.3
+  ctx.moveTo(cx, cy + topCurveHeight)
+
+  // 左半边
+  ctx.bezierCurveTo(
+    cx - size, cy - topCurveHeight,
+    cx - size, cy - size * 0.8,
+    cx, cy - size * 0.8
+  )
+
+  // 右半边
+  ctx.bezierCurveTo(
+    cx + size, cy - size * 0.8,
+    cx + size, cy - topCurveHeight,
+    cx, cy + topCurveHeight
+  )
+
+  ctx.closePath()
 }
 
 function drawLine(ctx: CanvasRenderingContext2D, line: Line) {
@@ -476,7 +590,7 @@ function drawTrain(ctx: CanvasRenderingContext2D, t: Train) {
   ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2); ctx.fill();
   // show passengers in train as small bar
-  const totalP = t.passengersBy.circle + t.passengersBy.triangle + t.passengersBy.square
+  const totalP = t.passengersBy.circle + t.passengersBy.triangle + t.passengersBy.square + t.passengersBy.star + t.passengersBy.heart
   if (totalP>0) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(x-6,y+7, Math.min(12, totalP*2), 2) }
   // dwell indicator
   if (t.dwell > 0) { ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(x-6,y+10, 12*(t.dwell/0.8), 2) }
@@ -533,8 +647,8 @@ function update(dt: number) {
       // dwell start
       t.dwell = Math.max(t.dwell, DWELL_TIME)
       // load by capacity left — prefer passengers whose destination is along this line direction (future: real routing)
-      let capacityLeft = t.capacity - (t.passengersBy.circle + t.passengersBy.triangle + t.passengersBy.square)
-      const order: Shape[] = ['circle','triangle','square']
+      let capacityLeft = t.capacity - (t.passengersBy.circle + t.passengersBy.triangle + t.passengersBy.square + t.passengersBy.star + t.passengersBy.heart)
+      const order: Shape[] = ['circle','triangle','square','star','heart']
       for (const sh of order) {
         if (capacityLeft <= 0) break
         // if per-destination exists, drain from any destination bucket for this shape
@@ -751,8 +865,8 @@ function main() {
     btnSpawn.onclick = ()=> {
       const pos = { x: camera.pos.x + (Math.random()*0.6+0.2)* ( canvas.width / camera.scale ),
                     y: camera.pos.y + (Math.random()*0.6+0.2)* ( canvas.height / camera.scale ) }
-      const shapes: Station['shape'][] = ['circle','triangle','square']
-      addStation(pos, shapes[Math.floor(Math.random()*3)])
+      const shapes: Station['shape'][] = ['circle','triangle','square','star','heart']
+      addStation(pos, shapes[Math.floor(Math.random()*shapes.length)])
     }
     updateLabels()
   }
