@@ -77,11 +77,25 @@ function addStation(pos: Vec2, shape: Station['shape']): Station {
   state.stations.push(s); return s
 }
 
-function addLine(color: string, a: Station, b: Station, name?: string): Line {
-  const lineName = name ?? `${state.nextLineNum}号线`
-  if (!name) {
-    state.nextLineNum++
+function getNextAvailableLineNumber(): number {
+  // Find the smallest available line number
+  const existingNumbers = state.lines
+    .map(l => l.name.match(/(\d+)号线/))
+    .filter(match => match)
+    .map(match => parseInt(match![1]))
+    .sort((a, b) => a - b)
+
+  // Find the first gap or return next number
+  for (let i = 1; i <= existingNumbers.length + 1; i++) {
+    if (!existingNumbers.includes(i)) {
+      return i
+    }
   }
+  return 1 // fallback
+}
+
+function addLine(color: string, a: Station, b: Station, name?: string): Line {
+  const lineName = name ?? `${getNextAvailableLineNumber()}号线`
   const l: Line = { id: nextId++, name: lineName, color, stations: [a.id, b.id] }
   state.lines.push(l)
   // add one train for line by default
@@ -142,6 +156,10 @@ function canExtendLine(line: Line, from: Station, to: Station): boolean {
   }
 }
 
+function getExtendableLines(from: Station, to: Station): Line[] {
+  return state.lines.filter(line => canExtendLine(line, from, to))
+}
+
 
 function spawnInitialWorld() {
   // seed stations
@@ -151,8 +169,6 @@ function spawnInitialWorld() {
   // create initial line (1号线)
   const firstLine = addLine(COLORS[0], s1, s2, '1号线')
   state.currentLineId = firstLine.id
-  // Ensure next line will be 2号线
-  state.nextLineNum = 2
 }
 function showLinkChooser(from: Station, to: Station) {
   state.showLinkChooser = true
@@ -174,13 +190,12 @@ function showLinkChooser(from: Station, to: Station) {
     text.textContent = `连接 ${from.shape} → ${to.shape}`
     let html = ''
 
-    // Check if we can extend current line
-    if (state.currentLineId && state.lines.find(l => l.id === state.currentLineId)) {
-      const currentLine = state.lines.find(l => l.id === state.currentLineId)!
-      const canExtend = canExtendLine(currentLine, from, to)
-      if (canExtend) {
-        html += `<button id="extend-current">延长 ${currentLine.name}</button>`
-      }
+    // Check all extendable lines
+    const extendableLines = getExtendableLines(from, to)
+    if (extendableLines.length > 0) {
+      extendableLines.forEach(line => {
+        html += `<button class="extend-line" data-line-id="${line.id}">延长 ${line.name}</button>`
+      })
     }
 
     html += `<button id="new-line">新建线路</button>`
@@ -192,9 +207,9 @@ function showLinkChooser(from: Station, to: Station) {
 
   // Add event listeners
   const removeBtn = document.getElementById('remove-line')
-  const extendBtn = document.getElementById('extend-current')
   const newBtn = document.getElementById('new-line')
   const cancelBtn = document.getElementById('cancel-action')
+  const extendBtns = document.querySelectorAll('.extend-line')
 
   if (removeBtn) {
     removeBtn.onclick = () => {
@@ -203,36 +218,39 @@ function showLinkChooser(from: Station, to: Station) {
     }
   }
 
-  if (extendBtn) {
-    extendBtn.onclick = () => {
-      if (state.currentLineId) {
-        const currentLine = state.lines.find(l => l.id === state.currentLineId)!
+  // Handle extend line buttons
+  extendBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lineId = Number((btn as HTMLButtonElement).dataset.lineId)
+      const line = state.lines.find(l => l.id === lineId)
+      if (line) {
         // Determine which station to add and where
-        const fromOnLine = currentLine.stations.includes(from.id)
-        const toOnLine = currentLine.stations.includes(to.id)
+        const fromOnLine = line.stations.includes(from.id)
+        const toOnLine = line.stations.includes(to.id)
 
         if (fromOnLine && !toOnLine) {
           // Add 'to' station
-          const fromIndex = currentLine.stations.indexOf(from.id)
+          const fromIndex = line.stations.indexOf(from.id)
           if (fromIndex === 0) {
-            currentLine.stations.unshift(to.id)
-          } else if (fromIndex === currentLine.stations.length - 1) {
-            currentLine.stations.push(to.id)
+            line.stations.unshift(to.id)
+          } else if (fromIndex === line.stations.length - 1) {
+            line.stations.push(to.id)
           }
         } else if (toOnLine && !fromOnLine) {
           // Add 'from' station
-          const toIndex = currentLine.stations.indexOf(to.id)
+          const toIndex = line.stations.indexOf(to.id)
           if (toIndex === 0) {
-            currentLine.stations.unshift(from.id)
-          } else if (toIndex === currentLine.stations.length - 1) {
-            currentLine.stations.push(from.id)
+            line.stations.unshift(from.id)
+          } else if (toIndex === line.stations.length - 1) {
+            line.stations.push(from.id)
           }
         }
+        state.currentLineId = lineId // Set as current line
         renderLinesPanel()
       }
       hideLinkChooser()
-    }
-  }
+    })
+  })
 
   if (newBtn) {
     newBtn.onclick = () => {
