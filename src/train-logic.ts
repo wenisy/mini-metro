@@ -1,4 +1,4 @@
-import type { Train, Shape } from './types.js'
+import type { Shape } from './types.js'
 import { state, zeroByShape, total, clamp, calculateDwellTime } from './game-state.js'
 
 // 列车运行逻辑

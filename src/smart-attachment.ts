@@ -399,7 +399,7 @@ function splitLineAtSegment(line: any, segment: LineSegment): boolean {
     }
 
     // 创建第一条新线路
-    const firstStations = firstPart.map(id => state.stations.find(s => s.id === id)!)
+    const firstStations = firstPart.map((id: number) => state.stations.find(s => s.id === id)!)
     const newLine1 = addLine(line.color, firstStations[0], firstStations[1], newLine1Name)
 
     // 添加剩余站点到第一条线路
@@ -408,7 +408,7 @@ function splitLineAtSegment(line: any, segment: LineSegment): boolean {
     }
 
     // 创建第二条新线路（使用不同颜色）
-    const secondStations = secondPart.map(id => state.stations.find(s => s.id === id)!)
+    const secondStations = secondPart.map((id: number) => state.stations.find(s => s.id === id)!)
     const newColor = COLORS[(state.lines.length) % COLORS.length]
     const newLine2 = addLine(newColor, secondStations[0], secondStations[1], newLine2Name)
 
