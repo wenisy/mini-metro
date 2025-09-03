@@ -209,7 +209,10 @@ function showLinkChooserUI(from: any, to: any, existing: any = null, extendableL
     if (extendableLines.length > 0) {
       const extensionCost = calculateExtensionCost()
       extendableLines.forEach(line => {
-        html += `<button class="extend-line" data-line-id="${line.id}">延长 ${line.name} ($${extensionCost})</button>`
+        html += `<button class="extend-line" data-line-id="${line.id}" style="display:flex;align-items:center;gap:6px;padding:6px 8px;">
+          <span style="display:inline-block;width:12px;height:12px;background:${line.color};border-radius:50%;border:1px solid rgba(255,255,255,0.3);"></span>
+          <span>延长 ${line.name} ($${extensionCost})</span>
+        </button>`
       })
     }
 
@@ -254,20 +257,32 @@ function showLinkChooserUI(from: any, to: any, existing: any = null, extendableL
             const toOnLine = line.stations.includes(to.id)
 
             if (fromOnLine && !toOnLine) {
-              // 添加 'to' 站点
+              // 添加 'to' 站点到线路
               const fromIndex = line.stations.indexOf(from.id)
               if (fromIndex === 0) {
+                // 在线路开头添加
                 line.stations.unshift(to.id)
               } else if (fromIndex === line.stations.length - 1) {
+                // 在线路末尾添加
                 line.stations.push(to.id)
+              } else {
+                // 从中间站点扩展：创建分支线路
+                // 为了简化，我们在当前站点后插入新站点
+                line.stations.splice(fromIndex + 1, 0, to.id)
               }
             } else if (toOnLine && !fromOnLine) {
-              // 添加 'from' 站点
+              // 添加 'from' 站点到线路
               const toIndex = line.stations.indexOf(to.id)
               if (toIndex === 0) {
+                // 在线路开头添加
                 line.stations.unshift(from.id)
               } else if (toIndex === line.stations.length - 1) {
+                // 在线路末尾添加
                 line.stations.push(from.id)
+              } else {
+                // 从中间站点扩展：创建分支线路
+                // 为了简化，我们在当前站点后插入新站点
+                line.stations.splice(toIndex + 1, 0, from.id)
               }
             }
             state.currentLineId = lineId // 设置为当前线路
