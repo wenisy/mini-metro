@@ -122,6 +122,67 @@ export function findAttachmentCandidates(targetStation: any): AttachmentCandidat
   return candidates
 }
 
+// 创建通用吸附候选 - 支持连接到任意线路
+export function createUniversalAttachmentCandidates(targetStation: any, draggedLineId?: number, stationDistance?: number): AttachmentCandidate[] {
+  const candidates: AttachmentCandidate[] = []
+
+  // 1. 首先添加传统的线路段吸附候选（中间插入）
+  const traditionalCandidates = findAttachmentCandidates(targetStation)
+  candidates.push(...traditionalCandidates)
+
+  // 2. 添加线路端点扩展候选（连接到线路的起点或终点）
+  for (const line of state.lines) {
+    // 跳过已经包含该站点的线路
+    if (line.stations.includes(targetStation.id)) continue
+
+    // 跳过被拖拽的线路本身（避免自连接）
+    if (draggedLineId && line.id === draggedLineId) continue
+
+    // 检查是否可以连接到线路的起点或终点
+    if (line.stations.length >= 2) {
+      const firstStationId = line.stations[0]
+      const lastStationId = line.stations[line.stations.length - 1]
+
+      const firstStation = state.stations.find(s => s.id === firstStationId)
+      const lastStation = state.stations.find(s => s.id === lastStationId)
+
+      if (firstStation && lastStation) {
+        const distToFirst = Math.sqrt(dist2(targetStation.pos, firstStation.pos))
+        const distToLast = Math.sqrt(dist2(targetStation.pos, lastStation.pos))
+
+        // 检查是否在合理的连接范围内
+        const maxConnectionDistance = smartAttachment.snapThreshold * 1.5 // 扩展连接范围
+
+        if (distToFirst <= maxConnectionDistance) {
+          candidates.push({
+            station: targetStation,
+            line,
+            insertIndex: 0, // 插入到开头
+            distance: stationDistance || distToFirst,
+            attachmentType: 'endpoint',
+            projectionPoint: firstStation.pos,
+            connectionType: 'start' // 标记连接类型
+          } as AttachmentCandidate & { connectionType: string })
+        }
+
+        if (distToLast <= maxConnectionDistance) {
+          candidates.push({
+            station: targetStation,
+            line,
+            insertIndex: line.stations.length, // 插入到末尾
+            distance: stationDistance || distToLast,
+            attachmentType: 'endpoint',
+            projectionPoint: lastStation.pos,
+            connectionType: 'end' // 标记连接类型
+          } as AttachmentCandidate & { connectionType: string })
+        }
+      }
+    }
+  }
+
+  return candidates
+}
+
 // 线段点击检测
 export function hitTestLineSegment(p: Vec2, threshold: number = 15): LineSegment | null {
   const segments = getAllLineSegments()
@@ -143,22 +204,37 @@ export function hitTestLineSegment(p: Vec2, threshold: number = 15): LineSegment
   return bestSegment
 }
 
-// 更新吸附候选
+// 更新吸附候选 - 支持通用线路扩展
 export function updateAttachmentCandidates(dragPos: Vec2): void {
   smartAttachment.attachmentCandidates = []
   smartAttachment.activeCandidate = null
 
+  // 获取被拖拽的线路ID
+  const draggedLineId = smartAttachment.draggedSegment?.lineId
+
   for (const station of state.stations) {
     const distance = Math.sqrt(dist2(dragPos, station.pos))
+
+    // 扩展检测范围：在吸附阈值内的站点，或者距离较近的站点都可以考虑
     if (distance <= smartAttachment.snapThreshold) {
-      const candidates = findAttachmentCandidates(station)
-      smartAttachment.attachmentCandidates.push(...candidates)
+      // 为每个站点创建吸附候选，支持连接到任意线路
+      const universalCandidates = createUniversalAttachmentCandidates(station, draggedLineId, distance)
+      smartAttachment.attachmentCandidates.push(...universalCandidates)
     }
   }
 
   // 对所有候选进行智能排序
   smartAttachment.attachmentCandidates.sort((a, b) => {
-    // 如果有当前选中的线路，优先选择它
+    // 优先级1: 被拖拽的线路本身（延长）
+    if (draggedLineId) {
+      const aIsDraggedLine = a.line.id === draggedLineId
+      const bIsDraggedLine = b.line.id === draggedLineId
+
+      if (aIsDraggedLine && !bIsDraggedLine) return -1
+      if (!aIsDraggedLine && bIsDraggedLine) return 1
+    }
+
+    // 优先级2: 当前选中的线路
     if (state.currentLineId) {
       const aIsCurrentLine = a.line.id === state.currentLineId
       const bIsCurrentLine = b.line.id === state.currentLineId
@@ -167,14 +243,15 @@ export function updateAttachmentCandidates(dragPos: Vec2): void {
       if (!aIsCurrentLine && bIsCurrentLine) return 1
     }
 
-    // 如果都是或都不是当前线路，按距离排序
+    // 优先级3: 按距离排序
     return a.distance - b.distance
   })
 
   if (smartAttachment.attachmentCandidates.length > 0) {
     smartAttachment.activeCandidate = smartAttachment.attachmentCandidates[0]
+    const draggedLineText = draggedLineId && smartAttachment.activeCandidate.line.id === draggedLineId ? ' (被拖拽线路)' : ''
     const currentLineText = state.currentLineId && smartAttachment.activeCandidate.line.id === state.currentLineId ? ' (当前线路)' : ''
-    console.log(`找到吸附候选: ${smartAttachment.activeCandidate.station.shape} → ${smartAttachment.activeCandidate.line.name}${currentLineText}, 距离: ${smartAttachment.activeCandidate.distance.toFixed(1)}`)
+    console.log(`找到吸附候选: ${smartAttachment.activeCandidate.station.shape} → ${smartAttachment.activeCandidate.line.name}${draggedLineText}${currentLineText}, 距离: ${smartAttachment.activeCandidate.distance.toFixed(1)}`)
   }
 }
 
@@ -221,10 +298,12 @@ export function performAttachment(candidate: AttachmentCandidate): boolean {
   const station = candidate.station
 
   if (line.stations.includes(station.id)) {
+    console.log('站点已在线路中，跳过吸附')
     return false
   }
 
   if (!isValidAttachment(candidate)) {
+    console.log('吸附验证失败')
     return false
   }
 
@@ -233,21 +312,39 @@ export function performAttachment(candidate: AttachmentCandidate): boolean {
     createAttachmentAnimation(smartAttachment.currentDragPos, station.pos)
   }
 
-  // 执行吸附
+  // 执行吸附 - 支持通用连接
+  const candidateWithType = candidate as AttachmentCandidate & { connectionType?: string }
+
   if (candidate.attachmentType === 'endpoint') {
-    const firstStation = state.stations.find(s => s.id === line.stations[0])!
-    const lastStation = state.stations.find(s => s.id === line.stations[line.stations.length - 1])!
-
-    const distToFirst = Math.sqrt(dist2(station.pos, firstStation.pos))
-    const distToLast = Math.sqrt(dist2(station.pos, lastStation.pos))
-
-    if (distToFirst < distToLast) {
+    // 检查是否有明确的连接类型指定
+    if (candidateWithType.connectionType === 'start') {
+      // 连接到线路起点
       line.stations.unshift(station.id)
-    } else {
+      console.log(`站点 ${station.shape} 连接到 ${line.name} 的起点`)
+    } else if (candidateWithType.connectionType === 'end') {
+      // 连接到线路终点
       line.stations.push(station.id)
+      console.log(`站点 ${station.shape} 连接到 ${line.name} 的终点`)
+    } else {
+      // 传统的距离判断方式
+      const firstStation = state.stations.find(s => s.id === line.stations[0])!
+      const lastStation = state.stations.find(s => s.id === line.stations[line.stations.length - 1])!
+
+      const distToFirst = Math.sqrt(dist2(station.pos, firstStation.pos))
+      const distToLast = Math.sqrt(dist2(station.pos, lastStation.pos))
+
+      if (distToFirst < distToLast) {
+        line.stations.unshift(station.id)
+        console.log(`站点 ${station.shape} 连接到 ${line.name} 的起点（距离判断）`)
+      } else {
+        line.stations.push(station.id)
+        console.log(`站点 ${station.shape} 连接到 ${line.name} 的终点（距离判断）`)
+      }
     }
   } else {
+    // 中间插入
     line.stations.splice(candidate.insertIndex, 0, station.id)
+    console.log(`站点 ${station.shape} 插入到 ${line.name} 的中间位置 ${candidate.insertIndex}`)
   }
 
   return true

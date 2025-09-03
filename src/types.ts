@@ -50,6 +50,7 @@ export interface AttachmentCandidate {
   distance: number
   attachmentType: 'endpoint' | 'middle'
   projectionPoint: Vec2
+  connectionType?: 'start' | 'end' | 'middle' // 新增：明确的连接类型
 }
 
 // 动画系统类型
