@@ -21,6 +21,16 @@ export interface Line {
   stations: number[]
 }
 
+// 列车视觉状态
+export interface TrainVisualState {
+  currentLength: number       // 当前显示长度
+  targetLength: number        // 目标长度
+  currentColor: string        // 当前颜色
+  targetColor: string         // 目标颜色
+  pulsePhase: number          // 脉冲动画相位
+  lastUpdateTime: number      // 上次更新时间
+}
+
 export interface Train {
   id: number
   lineId: number
@@ -31,6 +41,7 @@ export interface Train {
   passengersBy: Record<Shape, number>
   passengersTo: Record<number, Record<Shape, number>>
   dwell: number
+  visual?: TrainVisualState   // 可选的视觉状态
 }
 
 // 智能吸附系统类型

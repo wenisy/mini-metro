@@ -239,11 +239,11 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
   const halfLength = effectiveLength / 2
   const halfWidth = effectiveWidth / 2
 
-  // 绘制阴影
-  if (shadowIntensity > 0.2) {
-    ctx.fillStyle = `rgba(0, 0, 0, ${shadowIntensity})`
+  // 绘制阴影（增强阴影效果）
+  if (shadowIntensity > 0.15) {
+    ctx.fillStyle = `rgba(0, 0, 0, ${Math.min(shadowIntensity * 1.2, 0.4)})`
     ctx.beginPath()
-    const shadowOffset = 2
+    const shadowOffset = 3 // 增大阴影偏移
     ctx.moveTo(x - dirX * halfLength - perpX * halfWidth + shadowOffset, y - dirY * halfLength - perpY * halfWidth + shadowOffset)
     ctx.lineTo(x + dirX * halfLength - perpX * halfWidth + shadowOffset, y + dirY * halfLength - perpY * halfWidth + shadowOffset)
     ctx.lineTo(x + dirX * halfLength + perpX * halfWidth + shadowOffset, y + dirY * halfLength + perpY * halfWidth + shadowOffset)
@@ -264,15 +264,42 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
   ctx.fill()
 
   // 警告效果（接近满载时的边框闪烁）
-  if (showWarning && pulseIntensity > 0) {
-    ctx.strokeStyle = `rgba(255, 193, 7, ${0.5 + pulseIntensity * 0.5})`
-    ctx.lineWidth = 2
+  if (showWarning) {
+    const warningAlpha = pulseIntensity > 0 ? 0.6 + pulseIntensity * 0.4 : 0.4
+    ctx.strokeStyle = `rgba(255, 152, 0, ${warningAlpha})` // 更鲜明的橙色
+    ctx.lineWidth = 3 // 更粗的警告边框
     ctx.stroke()
+
+    // 满载时添加外圈光晕效果
+    if (loadRatio >= trainVisualConfig.capacity.thresholds.full && pulseIntensity > 0) {
+      ctx.strokeStyle = `rgba(244, 67, 54, ${pulseIntensity * 0.6})`
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      const glowOffset = 2
+      ctx.moveTo(x - dirX * (halfLength + glowOffset) - perpX * (halfWidth + glowOffset), y - dirY * (halfLength + glowOffset) - perpY * (halfWidth + glowOffset))
+      ctx.lineTo(x + dirX * (halfLength + glowOffset) - perpX * (halfWidth + glowOffset), y + dirY * (halfLength + glowOffset) - perpY * (halfWidth + glowOffset))
+      ctx.lineTo(x + dirX * (halfLength + glowOffset) + perpX * (halfWidth + glowOffset), y + dirY * (halfLength + glowOffset) + perpY * (halfWidth + glowOffset))
+      ctx.lineTo(x - dirX * (halfLength + glowOffset) + perpX * (halfWidth + glowOffset), y - dirY * (halfLength + glowOffset) + perpY * (halfWidth + glowOffset))
+      ctx.closePath()
+      ctx.stroke()
+    }
   }
 
-  // 绘制列车边框
+  // 绘制列车边框（增强边框）
   ctx.strokeStyle = trainVisualConfig.capacity.colors.border
+  ctx.lineWidth = 2 // 增加边框宽度
+  ctx.stroke()
+
+  // 添加内部高光效果
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'
   ctx.lineWidth = 1
+  ctx.beginPath()
+  const innerOffset = 1
+  ctx.moveTo(x - dirX * (halfLength - innerOffset) - perpX * (halfWidth - innerOffset), y - dirY * (halfLength - innerOffset) - perpY * (halfWidth - innerOffset))
+  ctx.lineTo(x + dirX * (halfLength - innerOffset) - perpX * (halfWidth - innerOffset), y + dirY * (halfLength - innerOffset) - perpY * (halfWidth - innerOffset))
+  ctx.lineTo(x + dirX * (halfLength - innerOffset) + perpX * (halfWidth - innerOffset), y + dirY * (halfLength - innerOffset) + perpY * (halfWidth - innerOffset))
+  ctx.lineTo(x - dirX * (halfLength - innerOffset) + perpX * (halfWidth - innerOffset), y - dirY * (halfLength - innerOffset) + perpY * (halfWidth - innerOffset))
+  ctx.closePath()
   ctx.stroke()
 
   // 绘制载客进度条

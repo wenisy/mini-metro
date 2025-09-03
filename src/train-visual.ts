@@ -5,19 +5,19 @@ import { total } from './game-state.js'
 export const trainVisualConfig = {
   // 长度配置
   length: {
-    min: 18,              // 最小长度（增大基础长度）
-    max: 48,              // 最大长度（增大最大长度让变化更明显）
-    transitionSpeed: 3.0  // 长度变化速度（每秒像素）
+    min: 20,              // 最小长度（进一步增大基础长度）
+    max: 56,              // 最大长度（更大的最大长度让载客变化更明显）
+    transitionSpeed: 4.0  // 长度变化速度（稍快的变化速度）
   },
 
   // 载客状态可视化
   capacity: {
     colors: {
-      empty: '#e8f5e8',     // 空载颜色（浅绿）
-      normal: '#4caf50',    // 正常载客颜色（绿色）
-      warning: '#ff9800',   // 接近满载颜色（橙色）
-      full: '#f44336',      // 满载颜色（红色）
-      border: '#333'        // 边框颜色
+      empty: '#f0f8f0',     // 空载颜色（更亮的浅绿）
+      normal: '#2e7d32',    // 正常载客颜色（深绿色，更突出）
+      warning: '#f57c00',   // 接近满载颜色（深橙色）
+      full: '#d32f2f',      // 满载颜色（深红色）
+      border: '#1a1a1a'     // 边框颜色（更深的边框）
     },
     thresholds: {
       warning: 0.7,         // 警告阈值（70%）
@@ -35,10 +35,10 @@ export const trainVisualConfig = {
 
   // 进度条配置
   progressBar: {
-    height: 2,              // 进度条高度
-    margin: 1,              // 进度条边距
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    foregroundColor: 'rgba(255,255,255,0.8)'
+    height: 3,              // 进度条高度（增加高度）
+    margin: 2,              // 进度条边距（增加边距）
+    backgroundColor: 'rgba(0,0,0,0.4)',      // 更深的背景色
+    foregroundColor: 'rgba(255,255,255,0.9)' // 更亮的前景色
   }
 }
 

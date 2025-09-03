@@ -1,5 +1,6 @@
 import type { Shape } from './types.js'
 import { state, zeroByShape, total, clamp, calculateDwellTime, addMoney, calculateTicketPrice } from './game-state.js'
+import { updateTrainVisualState } from './train-visual.js'
 
 // 获取游戏速度倍数
 function getGameSpeed(): number {
@@ -10,6 +11,9 @@ function getGameSpeed(): number {
 export function updateTrains(dt: number): void {
   for (const t of state.trains) {
     const line = state.lines.find(l => l.id === t.lineId)!
+
+    // 更新列车视觉状态
+    updateTrainVisualState(t, dt)
 
     // 处理在站停留
     if (t.dwell > 0) {
