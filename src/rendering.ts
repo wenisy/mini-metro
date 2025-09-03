@@ -202,22 +202,57 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
   const y = a.y + (b.y - a.y) * t.t
 
   ctx.save()
+
+  // 计算列车长度基于载客量
+  const totalP = total(t.passengersBy)
+  const baseLength = 5
+  const maxLength = 15
+  const trainLength = Math.max(baseLength, Math.min(maxLength, baseLength + (totalP / t.capacity) * (maxLength - baseLength)))
+
+  // 计算列车方向向量
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const distance = Math.sqrt(dx * dx + dy * dy)
+  const dirX = dx / distance
+  const dirY = dy / distance
+
+  // 计算垂直于方向的向量（用于列车宽度）
+  const perpX = -dirY
+  const perpY = dirX
+
+  // 列车宽度
+  const trainWidth = 3
+
+  // 绘制列车主体（矩形）
   ctx.fillStyle = '#fff'
   ctx.beginPath()
-  ctx.arc(x, y, 5, 0, Math.PI * 2)
+  const halfLength = trainLength / 2
+  const halfWidth = trainWidth / 2
+
+  ctx.moveTo(x - dirX * halfLength - perpX * halfWidth, y - dirY * halfLength - perpY * halfWidth)
+  ctx.lineTo(x + dirX * halfLength - perpX * halfWidth, y + dirY * halfLength - perpY * halfWidth)
+  ctx.lineTo(x + dirX * halfLength + perpX * halfWidth, y + dirY * halfLength + perpY * halfWidth)
+  ctx.lineTo(x - dirX * halfLength + perpX * halfWidth, y - dirY * halfLength + perpY * halfWidth)
+  ctx.closePath()
   ctx.fill()
 
-  // 显示列车内乘客
-  const totalP = total(t.passengersBy)
+  // 绘制列车边框
+  ctx.strokeStyle = '#333'
+  ctx.lineWidth = 1
+  ctx.stroke()
+
+  // 显示列车内乘客数量
   if (totalP > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,0.5)'
-    ctx.fillRect(x - 6, y + 7, Math.min(12, totalP * 2), 2)
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'
+    ctx.font = '8px system-ui'
+    ctx.textAlign = 'center'
+    ctx.fillText(totalP.toString(), x, y + 1)
   }
 
   // 停车指示器
   if (t.dwell > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,0.3)'
-    ctx.fillRect(x - 6, y + 10, 12 * (t.dwell / 0.8), 2)
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'
+    ctx.fillRect(x - trainLength / 2, y + trainWidth / 2 + 2, trainLength * (t.dwell / 0.8), 2)
   }
 
   ctx.restore()

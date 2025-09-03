@@ -1,10 +1,10 @@
-import { state, removeLine, getExtendableLines, addLine, COLORS, economy, priceConfig, addTrain, upgradeTrainCapacity, canAfford, toggleInfiniteMode, addStationSafely, calculateNewLineCost, calculateExtensionCost } from './game-state.js'
+import { state, removeLine, getExtendableLines, addLine, COLORS, economy, priceConfig, addTrain, upgradeTrainCapacity, canAfford, toggleInfiniteMode, addStationSafely, calculateNewLineCost, calculateExtensionCost, transactions, total } from './game-state.js'
 import { enableSegmentDeletionMode, disableSegmentDeletionMode, segmentDeletion } from './smart-attachment.js'
 import type { Vec2 } from './types.js'
 
 // let nextId = 1000 // 避免与游戏状态中的ID冲突 - 暂时注释掉未使用的变量
 
-// 更新财务面板
+// 更新财务面板和乘客统计
 export function updateFinancialPanel(): void {
   const balanceElement = document.getElementById('money-balance')
   const incomeElement = document.getElementById('total-income')
@@ -24,6 +24,9 @@ export function updateFinancialPanel(): void {
   if (incomeElement) incomeElement.textContent = economy.totalIncome.toString()
   if (expenseElement) expenseElement.textContent = economy.totalExpense.toString()
 
+  // 更新乘客统计
+  updatePassengerStats()
+
   // 更新按钮价格显示
   const trainCostElement = document.getElementById('train-cost')
   const capacityCostElement = document.getElementById('capacity-cost')
@@ -39,15 +42,42 @@ export function updateFinancialPanel(): void {
   updateButtonStates()
 }
 
+// 更新乘客统计
+function updatePassengerStats(): void {
+  const totalPassengersElement = document.getElementById('total-passengers')
+  const waitingPassengersElement = document.getElementById('waiting-passengers')
+
+  if (totalPassengersElement) {
+    // 计算已运送的总乘客数（从交易记录中获取）
+    const totalTransported = transactions
+      .filter(t => t.type === 'income' && t.description.includes('运输'))
+      .reduce((sum, t) => sum + (t.amount / 25), 0) // 假设平均票价25来估算乘客数
+    totalPassengersElement.textContent = Math.floor(totalTransported).toString()
+  }
+
+  if (waitingPassengersElement) {
+    // 计算等待中的乘客总数
+    const waitingPassengers = state.stations.reduce((sum, station) => sum + total(station.queueBy), 0)
+    waitingPassengersElement.textContent = waitingPassengers.toString()
+  }
+}
+
 function updateButtonStates(): void {
   const addTrainBtn = document.getElementById('btn-add-train') as HTMLButtonElement
   const capacityBtn = document.getElementById('btn-capacity') as HTMLButtonElement
+  const autoBtn = document.getElementById('toggle-auto') as HTMLButtonElement
+  const spawnBtn = document.getElementById('spawn-one') as HTMLButtonElement
+  const connectBtn = document.getElementById('spawn-on-connect') as HTMLButtonElement
+  const deleteBtn = document.getElementById('toggle-delete-mode') as HTMLButtonElement
+  const infiniteBtn = document.getElementById('toggle-infinite-mode') as HTMLButtonElement
 
+  // 更新列车相关按钮
   if (addTrainBtn) {
     const canAffordTrain = canAfford(priceConfig.newTrainCost) && state.currentLineId !== null
     addTrainBtn.disabled = !canAffordTrain
     addTrainBtn.style.opacity = canAffordTrain ? '1' : '0.5'
     addTrainBtn.style.cursor = canAffordTrain ? 'pointer' : 'not-allowed'
+    addTrainBtn.style.backgroundColor = canAffordTrain ? '#666' : '#444'
   }
 
   if (capacityBtn) {
@@ -57,6 +87,32 @@ function updateButtonStates(): void {
     capacityBtn.disabled = !canAffordCapacity
     capacityBtn.style.opacity = canAffordCapacity ? '1' : '0.5'
     capacityBtn.style.cursor = canAffordCapacity ? 'pointer' : 'not-allowed'
+    capacityBtn.style.backgroundColor = canAffordCapacity ? '#666' : '#444'
+  }
+
+  // 更新设置按钮
+  if (autoBtn) {
+    autoBtn.textContent = `自动生成: ${state.autoSpawnEnabled ? '开启' : '关闭'}`
+    autoBtn.style.backgroundColor = state.autoSpawnEnabled ? '#4CAF50' : '#666'
+  }
+
+  if (connectBtn) {
+    connectBtn.textContent = `连接时生成: ${state.spawnOnConnect ? '开启' : '关闭'}`
+    connectBtn.style.backgroundColor = state.spawnOnConnect ? '#4CAF50' : '#666'
+  }
+
+  if (deleteBtn) {
+    deleteBtn.textContent = `删除模式: ${segmentDeletion.deleteMode ? '开启' : '关闭'}`
+    deleteBtn.style.backgroundColor = segmentDeletion.deleteMode ? '#ff4757' : '#666'
+  }
+
+  if (infiniteBtn) {
+    infiniteBtn.textContent = `💰 无限模式: ${state.infiniteMode ? '开启' : '关闭'}`
+    infiniteBtn.style.backgroundColor = state.infiniteMode ? '#FF6B35' : '#4CAF50'
+  }
+
+  if (spawnBtn) {
+    spawnBtn.style.backgroundColor = '#666'
   }
 }
 
@@ -96,17 +152,21 @@ export function renderLinesPanel(): void {
     return
   }
 
+  if (state.lines.length === 0) {
+    linesList.innerHTML = '<div style="font-size:10px; color:#888; text-align:center; padding:8px;">暂无线路</div>'
+    return
+  }
+
   const html = state.lines.map(l => {
     const trainCount = state.trains.filter(t => t.lineId === l.id).length
     const avgCapacity = trainCount > 0 ?
       Math.round(state.trains.filter(t => t.lineId === l.id).reduce((sum, t) => sum + t.capacity, 0) / trainCount) : 0
     const isSelected = state.currentLineId === l.id
 
-    return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;padding:4px;background:${isSelected ? 'rgba(255,255,255,0.1)' : 'transparent'};border-radius:4px">
-      <span style="display:inline-block;width:10px;height:10px;background:${l.color};border-radius:2px"></span>
-      <button data-line="${l.id}" class="line-select" style="font-size:12px;flex:1;text-align:left">${l.name}</button>
-      <small style="opacity:.7;font-size:10px">${trainCount}车 ${avgCapacity}座</small>
-      <button data-line-delete="${l.id}" class="line-delete" style="font-size:12px;color:#ff6b6b;border:none;background:none;cursor:pointer;padding:2px 4px;border-radius:2px;" title="删除线路">×</button>
+    return `<div style="display:flex;align-items:center;gap:4px;margin:2px 0;padding:4px;background:${isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'};border-radius:3px;border-left:3px solid ${l.color};">
+      <button data-line="${l.id}" class="line-select" style="font-size:10px;flex:1;text-align:left;background:none;border:none;color:#fff;cursor:pointer;padding:0;" title="选择线路">${l.name}</button>
+      <span style="font-size:9px;color:#ccc;">${trainCount}车 ${avgCapacity}座</span>
+      <button data-line-delete="${l.id}" class="line-delete" style="font-size:10px;color:#ff6b6b;border:none;background:none;cursor:pointer;padding:1px 3px;border-radius:2px;" title="删除线路">×</button>
     </div>`
   }).join('')
 
@@ -343,16 +403,7 @@ export function setupUIControls(): void {
 
   if (btnAuto && btnSpawn && btnOnConnect && btnDeleteMode) {
     const updateLabels = () => {
-      btnAuto.textContent = `Auto Spawn: ${state.autoSpawnEnabled ? 'On' : 'Off'}`
-      btnOnConnect.textContent = `Spawn on Connect: ${state.spawnOnConnect ? 'On' : 'Off'}`
-      btnDeleteMode.textContent = `删除线路段: ${segmentDeletion.deleteMode ? 'On' : 'Off'}`
-      btnDeleteMode.style.backgroundColor = segmentDeletion.deleteMode ? '#ff3742' : '#ff4757'
-
-      // 更新无限模式按钮
-      if (btnInfiniteMode) {
-        btnInfiniteMode.textContent = `💰 无限模式: ${state.infiniteMode ? 'On' : 'Off'}`
-        btnInfiniteMode.style.backgroundColor = state.infiniteMode ? '#FF6B35' : '#4CAF50'
-      }
+      updateButtonStates()
     }
 
     btnAuto.onclick = () => {
