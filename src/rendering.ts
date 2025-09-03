@@ -205,8 +205,8 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
 
   // 计算列车长度基于载客量
   const totalP = total(t.passengersBy)
-  const baseLength = 5
-  const maxLength = 15
+  const baseLength = 12
+  const maxLength = 24
   const trainLength = Math.max(baseLength, Math.min(maxLength, baseLength + (totalP / t.capacity) * (maxLength - baseLength)))
 
   // 计算列车方向向量
@@ -221,7 +221,7 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
   const perpY = dirX
 
   // 列车宽度
-  const trainWidth = 3
+  const trainWidth = 6
 
   // 绘制列车主体（矩形）
   ctx.fillStyle = '#fff'

@@ -62,6 +62,25 @@ function updatePassengerStats(): void {
   }
 }
 
+// 更新游戏统计
+export function updateGameStats(): void {
+  const gameTimeElement = document.getElementById('game-time')
+  const stationCountElement = document.getElementById('station-count')
+  const trainCountElement = document.getElementById('train-count')
+
+  if (gameTimeElement) {
+    gameTimeElement.textContent = state.time.toFixed(1)
+  }
+
+  if (stationCountElement) {
+    stationCountElement.textContent = state.stations.length.toString()
+  }
+
+  if (trainCountElement) {
+    trainCountElement.textContent = state.trains.length.toString()
+  }
+}
+
 function updateButtonStates(): void {
   const addTrainBtn = document.getElementById('btn-add-train') as HTMLButtonElement
   const capacityBtn = document.getElementById('btn-capacity') as HTMLButtonElement

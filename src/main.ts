@@ -6,7 +6,7 @@ import { Camera, render, updateMoneyEffects } from './rendering.js'
 import { setupInput, interaction } from './input-handling.js'
 import { updateAnimations } from './smart-attachment.js'
 import { updateTrains, maybeSpawnStations, spawnPassengers } from './train-logic.js'
-import { setupUIControls, renderLinesPanel, showLinkChooser, hideLinkChooser, updateFinancialPanel } from './ui-controls.js'
+import { setupUIControls, renderLinesPanel, showLinkChooser, hideLinkChooser, updateFinancialPanel, updateGameStats } from './ui-controls.js'
 
 // 基础游戏引导：DPR感知画布，固定时间步长循环，指针输入
 
@@ -43,9 +43,10 @@ function update(dt: number) {
   // 更新金钱效果
   updateMoneyEffects()
 
-  // 定期更新财务面板（每秒更新一次）
+  // 定期更新财务面板和游戏统计（每秒更新一次）
   if (Math.floor(state.time * 10) % 10 === 0) {
     updateFinancialPanel()
+    updateGameStats()
   }
 }
 
@@ -87,7 +88,8 @@ function main() {
     }
 
     render(ctx, camera, canvas, interaction)
-    hud.textContent = `t=${state.time.toFixed(1)} s | ${state.gameSpeed}x | stations=${state.stations.length} | trains=${state.trains.length}`
+    // HUD信息已移至右侧面板，不再显示左上角HUD
+    hud.textContent = ''
     requestAnimationFrame(frame)
   }
 
