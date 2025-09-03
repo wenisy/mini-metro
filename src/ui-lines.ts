@@ -32,7 +32,10 @@ export function renderLinesPanel(): void {
     let lineHtml = `<div style="margin:4px 0;border-radius:4px;border:1px solid ${l.color};background:${isSelected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)'};">
       <div style="display:flex;align-items:center;gap:4px;padding:8px;background:${isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'};border-radius:3px 3px 0 0;border-bottom:1px solid rgba(255,255,255,0.1);">
         <button data-line-collapse="${l.id}" class="line-collapse" style="font-size:12px;width:20px;height:20px;padding:0;background:none;border:none;color:#ccc;cursor:pointer;border-radius:2px;" title="${isCollapsed ? '展开' : '折叠'}">${isCollapsed ? '▶' : '▼'}</button>
-        <button data-line="${l.id}" class="line-select" style="font-size:14px;flex:1;text-align:left;background:none;border:none;color:#fff;cursor:pointer;padding:0;font-weight:bold;" title="选择线路">${l.name}</button>
+        <button data-line="${l.id}" class="line-select" style="font-size:14px;flex:1;text-align:left;background:none;border:none;color:#fff;cursor:pointer;padding:0;font-weight:bold;display:flex;align-items:center;gap:6px;" title="选择线路">
+          <div style="width:12px;height:12px;border-radius:50%;background:${l.color};border:1px solid rgba(255,255,255,0.3);flex-shrink:0;"></div>
+          <span>${l.name}</span>
+        </button>
         <span style="font-size:11px;color:#ccc;">${trainCount}辆</span>
         <div style="display:flex;gap:2px;align-items:center;">
           <button data-line-add-train="${l.id}" class="line-add-train" style="font-size:14px;color:#4CAF50;border:1px solid #4CAF50;background:none;cursor:pointer;padding:0;border-radius:3px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;line-height:1;" title="添加列车">+</button>
