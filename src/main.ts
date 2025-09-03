@@ -82,7 +82,6 @@ function addStation(pos: Vec2, shape?: Station['shape'], size?: Station['size'])
 
   // 如果没有指定size，随机选择
   const stationSize = size || (() => {
-    const sizes: Station['size'][] = ['small','medium','large']
     const weights = [0.5, 0.3, 0.2] // small:50%, medium:30%, large:20%
     const rand = Math.random()
     if (rand < weights[0]) return 'small'
