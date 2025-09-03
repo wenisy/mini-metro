@@ -6,6 +6,15 @@ export const DWELL_TIME = 0.8
 export const QUEUE_FAIL = 12
 export const TRANSFER_STATION_EXTRA_DWELL = 0.4
 
+// 站点生成配置
+export const STATION_SPAWN_CONFIG = {
+  minDistance: 100,        // 站点间最小距离（像素）
+  maxRetries: 30,          // 最大重试次数
+  spawnAreaMargin: 80,     // 生成区域边距
+  spawnAreaWidth: 440,     // 生成区域宽度
+  spawnAreaHeight: 640     // 生成区域高度
+}
+
 // 经济系统配置
 export const priceConfig: PriceConfig = {
   // 收入相关
@@ -20,12 +29,17 @@ export const priceConfig: PriceConfig = {
     heart: 1.3
   },
 
-  // 支出相关
+  // 支出相关 - 基础成本
   newLineBaseCost: 200,
-  lineExtensionCost: 50,
+  lineExtensionCost: 100,  // 调整为基础成本，将通过倍数计算实际成本
   newTrainCost: 100,
   trainCapacityUpgradeCost: 20,
-  trainMaintenanceCost: 1 // 每分钟每列车
+  trainMaintenanceCost: 1, // 每分钟每列车
+
+  // 成本倍数配置
+  newLineCostMultiplier: 1.0,      // 新建线路：1.0倍基础成本
+  extensionCostMultiplier: 0.5,    // 延长线路：0.5倍基础成本
+  modificationCostMultiplier: 1.0  // 修改连接：1.0倍基础成本
 }
 
 // 游戏状态
@@ -43,6 +57,7 @@ export const state: GameState = {
   linkChooserFrom: null,
   linkChooserTo: null,
   passengerSpawnBaseRate: 0.05,
+  infiniteMode: false,
 }
 
 // 经济系统状态
@@ -81,6 +96,31 @@ export function dist2(a: Vec2, b: Vec2): number {
   return dx * dx + dy * dy
 }
 
+// 检查位置是否与现有站点距离足够远
+export function isPositionValidForStation(pos: Vec2, minDistance: number = STATION_SPAWN_CONFIG.minDistance): boolean {
+  const minDistanceSquared = minDistance * minDistance
+  return !state.stations.some(station => {
+    return dist2(station.pos, pos) < minDistanceSquared
+  })
+}
+
+// 生成一个有效的站点位置
+export function generateValidStationPosition(maxRetries: number = STATION_SPAWN_CONFIG.maxRetries): Vec2 | null {
+  for (let tries = 0; tries < maxRetries; tries++) {
+    const pos = {
+      x: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.spawnAreaWidth,
+      y: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.spawnAreaHeight
+    }
+
+    if (isPositionValidForStation(pos)) {
+      return pos
+    }
+  }
+
+  console.warn(`⚠️ 无法在${maxRetries}次尝试内找到合适的站点位置`)
+  return null
+}
+
 // 站点管理
 export function addStation(pos: Vec2, shape?: Station['shape'], size?: Station['size']): Station {
   const stationShape = shape || (() => {
@@ -109,6 +149,36 @@ export function addStation(pos: Vec2, shape?: Station['shape'], size?: Station['
   }
   state.stations.push(s)
   return s
+}
+
+// 安全添加站点（带距离检测）
+export function addStationSafely(pos?: Vec2, shape?: Station['shape'], size?: Station['size']): Station | null {
+  let finalPos: Vec2
+
+  if (pos) {
+    // 如果提供了位置，检查是否有效
+    if (!isPositionValidForStation(pos)) {
+      console.warn(`⚠️ 指定位置与现有站点距离过近，尝试生成新位置`)
+      const validPos = generateValidStationPosition()
+      if (!validPos) {
+        console.error(`❌ 无法找到合适的站点位置`)
+        return null
+      }
+      finalPos = validPos
+    } else {
+      finalPos = pos
+    }
+  } else {
+    // 如果没有提供位置，生成一个有效位置
+    const validPos = generateValidStationPosition()
+    if (!validPos) {
+      console.error(`❌ 无法找到合适的站点位置`)
+      return null
+    }
+    finalPos = validPos
+  }
+
+  return addStation(finalPos, shape, size)
 }
 
 export function hitTestStation(p: Vec2): Station | null {
@@ -155,7 +225,7 @@ export function getNextAvailableLineNumber(): number {
 }
 
 export function addLine(color: string, a: Station, b: Station, name?: string, skipPayment: boolean = false): Line | null {
-  const cost = priceConfig.newLineBaseCost
+  const cost = calculateNewLineCost()
 
   // 检查是否需要付费且余额是否足够
   if (!skipPayment && !canAfford(cost)) {
@@ -205,7 +275,7 @@ export function findLineBetween(aId: number, bId: number): Line | null {
 export function removeLine(lineId: number): void {
   const idx = state.lines.findIndex(l => l.id === lineId)
   if (idx >= 0) state.lines.splice(idx, 1)
-  
+
   // 移除该线路上的列车
   state.trains = state.trains.filter(t => t.lineId !== lineId)
 
@@ -260,8 +330,8 @@ export function getExtendableLines(from: Station, to: Station): Line[] {
 }
 
 // 线路延长费用检查
-export function extendLine(line: Line, newStationId: number, pos?: Vec2): boolean {
-  const cost = priceConfig.lineExtensionCost
+export function extendLine(line: Line, _newStationId: number, pos?: Vec2): boolean {
+  const cost = calculateExtensionCost()
 
   if (!canAfford(cost)) {
     console.log(`❌ 无法延长线路: 需要 $${cost}, 当前余额 $${economy.balance}`)
@@ -397,7 +467,34 @@ export function spendMoney(amount: number, description: string, pos?: Vec2): boo
 }
 
 export function canAfford(amount: number): boolean {
+  if (state.infiniteMode) {
+    return true
+  }
   return economy.balance >= amount
+}
+
+// 无限模式控制函数
+export function toggleInfiniteMode(): void {
+  state.infiniteMode = !state.infiniteMode
+  console.log(`🔄 无限模式: ${state.infiniteMode ? '开启' : '关闭'}`)
+
+  // 如果开启无限模式，设置一个极大的余额用于显示
+  if (state.infiniteMode) {
+    economy.balance = 999999999
+  }
+}
+
+// 统一成本计算函数
+export function calculateNewLineCost(): number {
+  return Math.round(priceConfig.newLineBaseCost * priceConfig.newLineCostMultiplier)
+}
+
+export function calculateExtensionCost(): number {
+  return Math.round(priceConfig.lineExtensionCost * priceConfig.extensionCostMultiplier)
+}
+
+export function calculateModificationCost(): number {
+  return Math.round(priceConfig.newLineBaseCost * priceConfig.modificationCostMultiplier)
 }
 
 export function calculateTicketPrice(fromStationId: number, toStationId: number, passengerShape: Shape): number {

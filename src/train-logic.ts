@@ -5,7 +5,7 @@ import { state, zeroByShape, total, clamp, calculateDwellTime, addMoney, calcula
 export function updateTrains(dt: number): void {
   for (const t of state.trains) {
     const line = state.lines.find(l => l.id === t.lineId)!
-    
+
     // 处理在站停留
     if (t.dwell > 0) {
       t.dwell = Math.max(0, t.dwell - dt)
@@ -69,18 +69,18 @@ export function updateTrains(dt: number): void {
       }
 
       t.passengersBy[s.shape] = 0
-      
+
       // 开始停车 - 使用动态停车时间（换乘站停留更久）
       const dwellTime = calculateDwellTime(sid)
       t.dwell = Math.max(t.dwell, dwellTime)
-      
+
       // 根据剩余容量装载乘客
       let capacityLeft = t.capacity - total(t.passengersBy)
       const order: Shape[] = ['circle', 'triangle', 'square', 'star', 'heart']
-      
+
       for (const sh of order) {
         if (capacityLeft <= 0) break
-        
+
         // 如果有按目的地分类的乘客，从任何目的地桶中取出该形状的乘客
         let remain = capacityLeft
         for (const destIdStr of Object.keys(s.queueTo)) {
@@ -92,7 +92,7 @@ export function updateTrains(dt: number): void {
             const take = Math.min(have, remain)
             perDest[sh] -= take
             s.queueBy[sh] -= take
-            
+
             // 添加到列车的按目的地分类的乘客中
             t.passengersTo[destId] = t.passengersTo[destId] || zeroByShape()
             t.passengersTo[destId][sh] = (t.passengersTo[destId][sh] || 0) + take
@@ -111,34 +111,26 @@ let spawnTimer = 0
 
 export function maybeSpawnStations(dt: number): void {
   if (!state.autoSpawnEnabled) return
-  
+
   spawnTimer += dt
   const interval = clamp(3 - state.time * 0.02, 1, 3) // 随时间加快
-  
+
   if (spawnTimer >= interval) {
     spawnTimer = 0
 
-    for (let tries = 0; tries < 20; tries++) {
-      const pos = { x: 80 + Math.random() * 440, y: 80 + Math.random() * 640 }
-      const shapes: Shape[] = ['circle', 'triangle', 'square', 'star', 'heart']
-      const shape = shapes[Math.floor(Math.random() * shapes.length)]
-      const minR = 40
-      
-      // 检查与现有站点的最小距离
-      const tooClose = state.stations.some(s => {
-        const dx = s.pos.x - pos.x
-        const dy = s.pos.y - pos.y
-        return dx * dx + dy * dy < minR * minR
-      })
-      
-      if (!tooClose) {
-        // 动态导入addStation以避免循环依赖
-        import('./game-state.js').then(({ addStation }) => {
-          addStation(pos, shape)
-        })
-        break
+    // 使用改进的站点生成函数
+    const shapes: Shape[] = ['circle', 'triangle', 'square', 'star', 'heart']
+    const shape = shapes[Math.floor(Math.random() * shapes.length)]
+
+    // 动态导入addStationSafely以避免循环依赖
+    import('./game-state.js').then(({ addStationSafely }) => {
+      const newStation = addStationSafely(undefined, shape)
+      if (newStation) {
+        console.log(`✅ 自动生成新站点: ${newStation.shape} (ID: ${newStation.id})`)
+      } else {
+        console.log(`⚠️ 无法生成新站点，可能空间不足`)
       }
-    }
+    })
   }
 }
 
@@ -146,17 +138,17 @@ export function maybeSpawnStations(dt: number): void {
 export function spawnPassengers(dt: number): void {
   if (state.stations.length && Math.random() < dt * (state.passengerSpawnBaseRate + state.time * 0.005)) {
     const from = state.stations[Math.floor(Math.random() * state.stations.length)]
-    
+
     // 选择不同形状的目标站点
     const candidates = state.stations.filter(st => st.id !== from.id && st.shape !== from.shape)
     if (candidates.length) {
       const to = candidates[Math.floor(Math.random() * candidates.length)]
       const targetShape: Shape = to.shape
-      
+
       from.queueBy[targetShape] = Math.min(99, from.queueBy[targetShape] + 1)
       from.queueTo[to.id] = from.queueTo[to.id] || zeroByShape()
       from.queueTo[to.id][targetShape] = Math.min(99, (from.queueTo[to.id][targetShape] || 0) + 1)
-      
+
       // 检查游戏结束条件
       if (total(from.queueBy) >= 12) { // QUEUE_FAIL
         state.gameOver = true

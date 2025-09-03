@@ -13,7 +13,13 @@ export const interaction: InteractionState = {
 // 工具函数
 export function pointerPos(e: { clientX: number; clientY: number }, canvas: HTMLCanvasElement): Vec2 {
   const r = canvas.getBoundingClientRect()
-  return { x: e.clientX - r.left, y: e.clientY - r.top }
+  // 考虑DPI缩放：将屏幕坐标转换为canvas坐标
+  const scaleX = canvas.width / r.width
+  const scaleY = canvas.height / r.height
+  return {
+    x: (e.clientX - r.left) * scaleX,
+    y: (e.clientY - r.top) * scaleY
+  }
 }
 
 // 设置输入处理
@@ -26,15 +32,15 @@ export function setupInput(canvas: HTMLCanvasElement, camera: Camera, showLinkCh
     e.preventDefault()
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
     canvas.setPointerCapture(e.pointerId)
-    
+
     if (pointers.size === 1) {
       const screen = pointerPos(e, canvas)
       const world = camera.toWorld(screen)
       const s = hitTestStation(world)
-      
+
       // 检查是否点击了线路（用于拖拽）
       const lineSegment = hitTestLineSegment(world, 15)
-      
+
       if (interaction.drawingFrom) {
         // 第二次点击：显示连接选择器
         const target = s ?? nearestStationWithin(world, 20)
@@ -82,7 +88,7 @@ export function setupInput(canvas: HTMLCanvasElement, camera: Camera, showLinkCh
   function onPointerMove(e: PointerEvent) {
     const prev = pointers.get(e.pointerId)
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    
+
     if (pointers.size === 1) {
       const screen = pointerPos(e, canvas)
       const world = camera.toWorld(screen)
@@ -110,7 +116,9 @@ export function setupInput(canvas: HTMLCanvasElement, camera: Camera, showLinkCh
       const d = Math.hypot(a.x - b.x, a.y - b.y)
       if (pinchDist0 === 0) pinchDist0 = d
       const factor = d / pinchDist0
-      const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+      // 计算中心点并转换为canvas坐标
+      const centerClient = { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 }
+      const center = pointerPos(centerClient, canvas)
       const worldBefore = camera.toWorld(center)
       camera.scale = clamp(camera.scale * factor, 0.5, 3)
       const worldAfter = camera.toWorld(center)
@@ -128,7 +136,7 @@ export function setupInput(canvas: HTMLCanvasElement, camera: Camera, showLinkCh
         console.log('智能吸附成功！')
       }
     }
-    
+
     // 完成绘制（如果释放在站点上）
     if (interaction.drawingFrom) {
       const screen = pointerPos(e, canvas)
@@ -141,7 +149,7 @@ export function setupInput(canvas: HTMLCanvasElement, camera: Camera, showLinkCh
       interaction.previewTo = null
       interaction.selectedLine = null
     }
-    
+
     pointers.delete(e.pointerId)
     if (pointers.size < 2) pinchDist0 = 0
     if (pointers.size === 0) { isPanning = false }
@@ -152,7 +160,7 @@ export function setupInput(canvas: HTMLCanvasElement, camera: Camera, showLinkCh
   canvas.addEventListener('pointermove', onPointerMove)
   canvas.addEventListener('pointerup', onPointerUp)
   canvas.addEventListener('pointercancel', onPointerUp)
-  
+
   // 防止iOS上下文菜单和选择手势
   canvas.addEventListener('contextmenu', (e) => e.preventDefault())
   canvas.addEventListener('selectstart', (e) => e.preventDefault())
@@ -161,7 +169,8 @@ export function setupInput(canvas: HTMLCanvasElement, camera: Camera, showLinkCh
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault()
     const factor = e.deltaY < 0 ? 1.1 : 0.9
-    const mouse: Vec2 = { x: e.clientX, y: e.clientY }
+    // 使用 pointerPos 函数确保坐标转换一致性
+    const mouse = pointerPos(e, canvas)
     const worldBefore = camera.toWorld(mouse)
     camera.scale = clamp(camera.scale * factor, 0.5, 3)
     const worldAfter = camera.toWorld(mouse)

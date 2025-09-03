@@ -100,6 +100,7 @@ export interface GameState {
   linkChooserFrom: Station | null
   linkChooserTo: Station | null
   passengerSpawnBaseRate: number
+  infiniteMode: boolean
 }
 
 // 相机类型
@@ -124,12 +125,17 @@ export interface PriceConfig {
   transferBonus: number             // 换乘站奖励
   shapeMultipliers: Record<Shape, number> // 不同形状乘客的票价倍数
 
-  // 支出相关
+  // 支出相关 - 基础成本
   newLineBaseCost: number           // 新建线路基础费用
   lineExtensionCost: number         // 线路延长费用（每站点）
   newTrainCost: number              // 新列车费用
   trainCapacityUpgradeCost: number  // 列车容量升级费用（每单位容量）
   trainMaintenanceCost: number      // 列车维护费用（每列车每分钟，可选）
+
+  // 成本倍数配置
+  newLineCostMultiplier: number     // 新建线路成本倍数（1.0倍）
+  extensionCostMultiplier: number   // 延长线路成本倍数（0.5倍）
+  modificationCostMultiplier: number // 修改现有连接成本倍数（1.0倍）
 }
 
 export interface Transaction {

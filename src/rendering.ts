@@ -6,11 +6,11 @@ import { smartAttachment, segmentDeletion } from './smart-attachment.js'
 export class Camera {
   pos: Vec2 = { x: 0, y: 0 }
   scale = 1
-  
+
   toScreen(p: Vec2): Vec2 {
     return { x: (p.x - this.pos.x) * this.scale, y: (p.y - this.pos.y) * this.scale }
   }
-  
+
   toWorld(p: Vec2): Vec2 {
     return { x: p.x / this.scale + this.pos.x, y: p.y / this.scale + this.pos.y }
   }
@@ -90,7 +90,7 @@ export function drawStation(ctx: CanvasRenderingContext2D, s: Station): void {
   ctx.font = '10px system-ui'
   ctx.textAlign = 'center'
   ctx.fillText(`${totalPassengers}/${s.capacity}`, 0, capacityRadius + 16)
-  
+
   // 换乘站标识
   if (isTransferStation(s.id)) {
     const lineCount = getStationLineCount(s.id)
@@ -108,10 +108,10 @@ export function drawStation(ctx: CanvasRenderingContext2D, s: Station): void {
 
     shapes.forEach(shape => {
       if (s.queueBy[shape] > 0) {
-        ctx.fillStyle = shape === 'circle' ? '#4fc3f7' : 
-                       shape === 'triangle' ? '#81c784' : 
-                       shape === 'square' ? '#ffb74d' : 
-                       shape === 'star' ? '#ffd54f' : '#f48fb1'
+        ctx.fillStyle = shape === 'circle' ? '#4fc3f7' :
+          shape === 'triangle' ? '#81c784' :
+            shape === 'square' ? '#ffb74d' :
+              shape === 'star' ? '#ffd54f' : '#f48fb1'
         ctx.fillText(`${shapeSymbols[shape]}${s.queueBy[shape]}`, capacityRadius + 8, yOffset)
         yOffset += 12
       }
@@ -200,26 +200,26 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
   const b = state.stations.find(s => s.id === line.stations[nextIndex])!.pos
   const x = a.x + (b.x - a.x) * t.t
   const y = a.y + (b.y - a.y) * t.t
-  
+
   ctx.save()
   ctx.fillStyle = '#fff'
   ctx.beginPath()
   ctx.arc(x, y, 5, 0, Math.PI * 2)
   ctx.fill()
-  
+
   // 显示列车内乘客
   const totalP = total(t.passengersBy)
   if (totalP > 0) {
     ctx.fillStyle = 'rgba(255,255,255,0.5)'
     ctx.fillRect(x - 6, y + 7, Math.min(12, totalP * 2), 2)
   }
-  
+
   // 停车指示器
   if (t.dwell > 0) {
     ctx.fillStyle = 'rgba(255,255,255,0.3)'
     ctx.fillRect(x - 6, y + 10, 12 * (t.dwell / 0.8), 2)
   }
-  
+
   ctx.restore()
 }
 
@@ -270,7 +270,7 @@ export function drawSmartAttachmentFeedback(ctx: CanvasRenderingContext2D): void
     }
     ctx.stroke()
   }
-  
+
   // 绘制吸附预览线
   if (smartAttachment.currentDragPos) {
     ctx.strokeStyle = highlightColor
@@ -280,14 +280,14 @@ export function drawSmartAttachmentFeedback(ctx: CanvasRenderingContext2D): void
     ctx.moveTo(smartAttachment.currentDragPos.x, smartAttachment.currentDragPos.y)
     ctx.lineTo(station.pos.x, station.pos.y)
     ctx.stroke()
-    
+
     // 绘制投影点
     ctx.fillStyle = highlightColor
     ctx.beginPath()
     ctx.arc(candidate.projectionPoint.x, candidate.projectionPoint.y, 4 + intensity * 2, 0, Math.PI * 2)
     ctx.fill()
   }
-  
+
   // 绘制拖拽指示器
   if (smartAttachment.currentDragPos) {
     const dragColor = isCurrentLine
@@ -413,7 +413,6 @@ export function drawMoneyEffects(ctx: CanvasRenderingContext2D): void {
 
     // 设置样式
     const isIncome = effect.type === 'income'
-    const color = isIncome ? '#00ff88' : '#ff4757'
     const sign = isIncome ? '+' : '-'
 
     ctx.fillStyle = `rgba(${isIncome ? '0, 255, 136' : '255, 71, 87'}, ${alpha})`

@@ -28,35 +28,35 @@ export function pointToLineSegmentDistance(point: Vec2, lineStart: Vec2, lineEnd
   const dx = lineEnd.x - lineStart.x
   const dy = lineEnd.y - lineStart.y
   const lengthSquared = dx * dx + dy * dy
-  
+
   if (lengthSquared === 0) {
     const distance = Math.sqrt(dist2(point, lineStart))
     return { distance, projection: { ...lineStart } }
   }
-  
+
   const t = Math.max(0, Math.min(1, ((point.x - lineStart.x) * dx + (point.y - lineStart.y) * dy) / lengthSquared))
-  
+
   const projection = {
     x: lineStart.x + t * dx,
     y: lineStart.y + t * dy
   }
-  
+
   const distance = Math.sqrt(dist2(point, projection))
-  
+
   return { distance, projection }
 }
 
 // 获取所有线段
 export function getAllLineSegments(): LineSegment[] {
   const segments: LineSegment[] = []
-  
+
   for (const line of state.lines) {
     if (line.stations.length < 2) continue
-    
+
     for (let i = 0; i < line.stations.length - 1; i++) {
       const startStation = state.stations.find(s => s.id === line.stations[i])
       const endStation = state.stations.find(s => s.id === line.stations[i + 1])
-      
+
       if (startStation && endStation) {
         segments.push({
           lineId: line.id,
@@ -69,7 +69,7 @@ export function getAllLineSegments(): LineSegment[] {
       }
     }
   }
-  
+
   return segments
 }
 
@@ -127,7 +127,7 @@ export function hitTestLineSegment(p: Vec2, threshold: number = 15): LineSegment
   const segments = getAllLineSegments()
   let bestSegment: LineSegment | null = null
   let bestDistance = threshold
-  
+
   for (const segment of segments) {
     const { distance } = pointToLineSegmentDistance(p, segment.startPos, segment.endPos)
     if (distance <= bestDistance) {
@@ -135,11 +135,11 @@ export function hitTestLineSegment(p: Vec2, threshold: number = 15): LineSegment
       bestSegment = segment
     }
   }
-  
+
   if (bestSegment) {
     console.log('检测到线路拖拽，线路ID:', bestSegment.lineId, '距离:', bestDistance.toFixed(1))
   }
-  
+
   return bestSegment
 }
 
@@ -190,20 +190,20 @@ export function startLineDrag(segment: LineSegment, startPos: Vec2): void {
 
 export function updateLineDrag(currentPos: Vec2): void {
   if (!smartAttachment.isDraggingLine) return
-  
+
   smartAttachment.currentDragPos = currentPos
   updateAttachmentCandidates(currentPos)
 }
 
 export function endLineDrag(): boolean {
   if (!smartAttachment.isDraggingLine) return false
-  
+
   let attachmentMade = false
-  
+
   if (smartAttachment.activeCandidate) {
     attachmentMade = performAttachment(smartAttachment.activeCandidate)
   }
-  
+
   // 重置拖拽状态
   smartAttachment.isDraggingLine = false
   smartAttachment.draggedSegment = null
@@ -211,7 +211,7 @@ export function endLineDrag(): boolean {
   smartAttachment.currentDragPos = null
   smartAttachment.attachmentCandidates = []
   smartAttachment.activeCandidate = null
-  
+
   return attachmentMade
 }
 
@@ -219,28 +219,28 @@ export function endLineDrag(): boolean {
 export function performAttachment(candidate: AttachmentCandidate): boolean {
   const line = candidate.line
   const station = candidate.station
-  
+
   if (line.stations.includes(station.id)) {
     return false
   }
-  
+
   if (!isValidAttachment(candidate)) {
     return false
   }
-  
+
   // 创建吸附动画
   if (smartAttachment.currentDragPos) {
     createAttachmentAnimation(smartAttachment.currentDragPos, station.pos)
   }
-  
+
   // 执行吸附
   if (candidate.attachmentType === 'endpoint') {
     const firstStation = state.stations.find(s => s.id === line.stations[0])!
     const lastStation = state.stations.find(s => s.id === line.stations[line.stations.length - 1])!
-    
+
     const distToFirst = Math.sqrt(dist2(station.pos, firstStation.pos))
     const distToLast = Math.sqrt(dist2(station.pos, lastStation.pos))
-    
+
     if (distToFirst < distToLast) {
       line.stations.unshift(station.id)
     } else {
@@ -249,7 +249,7 @@ export function performAttachment(candidate: AttachmentCandidate): boolean {
   } else {
     line.stations.splice(candidate.insertIndex, 0, station.id)
   }
-  
+
   return true
 }
 
@@ -258,35 +258,35 @@ export function isValidAttachment(candidate: AttachmentCandidate): boolean {
   const line = candidate.line
   const station = candidate.station
   const minDistance = 30
-  
+
   if (candidate.attachmentType === 'endpoint') {
     const firstStation = state.stations.find(s => s.id === line.stations[0])!
     const lastStation = state.stations.find(s => s.id === line.stations[line.stations.length - 1])!
-    
+
     const distToFirst = Math.sqrt(dist2(station.pos, firstStation.pos))
     const distToLast = Math.sqrt(dist2(station.pos, lastStation.pos))
-    
+
     return distToFirst >= minDistance && distToLast >= minDistance
   } else {
     const insertIndex = candidate.insertIndex
     if (insertIndex > 0 && insertIndex < line.stations.length) {
       const prevStation = state.stations.find(s => s.id === line.stations[insertIndex - 1])!
       const nextStation = state.stations.find(s => s.id === line.stations[insertIndex])!
-      
+
       const distToPrev = Math.sqrt(dist2(station.pos, prevStation.pos))
       const distToNext = Math.sqrt(dist2(station.pos, nextStation.pos))
-      
+
       return distToPrev >= minDistance && distToNext >= minDistance
     }
   }
-  
+
   return true
 }
 
 // 动画函数
 export function updateAnimations(dt: number): void {
   const currentTime = performance.now()
-  
+
   // 更新高亮动画
   if (smartAttachment.activeCandidate) {
     smartAttachment.highlightIntensity += smartAttachment.highlightDirection * dt * 3
@@ -301,7 +301,7 @@ export function updateAnimations(dt: number): void {
     smartAttachment.highlightIntensity = 0
     smartAttachment.highlightDirection = 1
   }
-  
+
   // 更新其他动画
   smartAttachment.animations = smartAttachment.animations.filter(anim => {
     anim.progress = Math.min(1, (currentTime - anim.startTime) / anim.duration)
@@ -432,6 +432,11 @@ function splitLineAtSegment(line: any, segment: LineSegment): boolean {
     const firstStations = firstPart.map((id: number) => state.stations.find(s => s.id === id)!)
     const newLine1 = addLine(line.color, firstStations[0], firstStations[1], newLine1Name)
 
+    if (!newLine1) {
+      console.error('无法创建第一条新线路')
+      return false
+    }
+
     // 添加剩余站点到第一条线路
     for (let i = 2; i < firstStations.length; i++) {
       newLine1.stations.push(firstStations[i].id)
@@ -441,6 +446,11 @@ function splitLineAtSegment(line: any, segment: LineSegment): boolean {
     const secondStations = secondPart.map((id: number) => state.stations.find(s => s.id === id)!)
     const newColor = COLORS[(state.lines.length) % COLORS.length]
     const newLine2 = addLine(newColor, secondStations[0], secondStations[1], newLine2Name)
+
+    if (!newLine2) {
+      console.error('无法创建第二条新线路')
+      return false
+    }
 
     // 添加剩余站点到第二条线路
     for (let i = 2; i < secondStations.length; i++) {
