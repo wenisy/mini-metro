@@ -16,6 +16,17 @@
     <div id="app">
       <canvas id="game"></canvas>
       <div class="overlay" id="hud">Loading…</div>
+
+      <!-- 左侧线路管理面板 -->
+      <div class="overlay" style="left: 0; top: 0; text-align: left; max-width: 300px; max-height: 80vh; overflow-y: auto;">
+        <div style="background: rgba(0,0,0,0.3); padding:12px; border-radius:6px; border: 1px solid rgba(255,255,255,0.1); margin-bottom:8px;">
+          <div style="margin-bottom:8px;">
+            <strong style="font-size:14px; color:#f87171;">🛤️ 线路管理</strong>
+          </div>
+          <div id="lines-list" style="font-size:12px; max-height: calc(80vh - 80px); overflow-y: auto;"></div>
+        </div>
+      </div>
+
       <div class="overlay" style="right: 0; left: auto; text-align: right; max-width: 240px;">
 
         <!-- 设置面板 -->
@@ -55,9 +66,6 @@
             <button id="spawn-one" style="font-size:11px; width:100%; padding:4px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;">+ 添加站点</button>
           </div>
 
-          <div style="margin-bottom:6px;">
-            <button id="spawn-on-connect" style="font-size:11px; width:100%; padding:4px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;">连接时生成: 关闭</button>
-          </div>
 
           <div style="margin-bottom:6px;">
             <button id="toggle-delete-mode" style="font-size:11px; width:100%; padding:4px; background:#ff4757; color:#fff; border:none; border-radius:3px; cursor:pointer;">删除模式: 关闭</button>
@@ -110,7 +118,7 @@
           </div>
 
           <!-- 列车管理 -->
-          <div style="margin-bottom:8px;">
+          <div style="margin-bottom:0;">
             <div style="margin-bottom:4px;">
               <strong style="font-size:11px; color:#fbbf24;">🚂 列车管理</strong>
             </div>
@@ -118,14 +126,6 @@
               <button id="btn-add-train" style="font-size:10px; flex:1; padding:4px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;" title="为当前线路添加列车">+ 列车<br>($<span id="train-cost">100</span>)</button>
               <button id="btn-capacity" style="font-size:10px; flex:1; padding:4px; background:#666; color:#ccc; border:none; border-radius:3px; cursor:pointer;" title="增加当前线路所有列车的载客量">+ 载客量<br>($<span id="capacity-cost">20</span>)</button>
             </div>
-          </div>
-
-          <!-- 线路管理 -->
-          <div style="margin-bottom:0;">
-            <div style="margin-bottom:4px;">
-              <strong style="font-size:11px; color:#f87171;">🛤️ 线路管理</strong>
-            </div>
-            <div id="lines-list" style="font-size:11px; max-height:120px; overflow-y:auto;"></div>
           </div>
         </div>
 

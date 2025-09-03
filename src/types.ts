@@ -104,7 +104,6 @@ export interface GameState {
   lines: Line[]
   trains: Train[]
   autoSpawnEnabled: boolean
-  spawnOnConnect: boolean
   gameOver: boolean
   currentLineId: number | null
   nextLineNum: number

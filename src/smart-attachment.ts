@@ -347,22 +347,6 @@ export function performAttachment(candidate: AttachmentCandidate): boolean {
     console.log(`站点 ${station.shape} 插入到 ${line.name} 的中间位置 ${candidate.insertIndex}`)
   }
 
-  // 检查是否需要生成新站点
-  if (state.spawnOnConnect) {
-    console.log('连接时生成新站点功能已启用，开始生成新站点')
-    // 动态导入以避免循环依赖
-    import('./game-state.js').then(({ addStationSafely }) => {
-      const shapes: ('circle' | 'triangle' | 'square' | 'star' | 'heart')[] = ['circle', 'triangle', 'square', 'star', 'heart']
-      const randomShape = shapes[Math.floor(Math.random() * shapes.length)]
-
-      const newStation = addStationSafely(undefined, randomShape)
-      if (newStation) {
-        console.log(`✅ 连接时自动生成新站点: ${newStation.shape} (ID: ${newStation.id})`)
-      } else {
-        console.log(`⚠️ 无法生成新站点，可能空间不足`)
-      }
-    })
-  }
 
   return true
 }

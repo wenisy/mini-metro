@@ -2,6 +2,9 @@ import { state, removeLine, getExtendableLines, addLine, COLORS, economy, priceC
 import { enableSegmentDeletionMode, disableSegmentDeletionMode, segmentDeletion } from './smart-attachment.js'
 import type { Vec2 } from './types.js'
 
+// 线路折叠状态跟踪
+const lineCollapsedState = new Map<number, boolean>()
+
 // let nextId = 1000 // 避免与游戏状态中的ID冲突 - 暂时注释掉未使用的变量
 
 // 更新财务面板和乘客统计
@@ -86,7 +89,6 @@ function updateButtonStates(): void {
   const capacityBtn = document.getElementById('btn-capacity') as HTMLButtonElement
   const autoBtn = document.getElementById('toggle-auto') as HTMLButtonElement
   const spawnBtn = document.getElementById('spawn-one') as HTMLButtonElement
-  const connectBtn = document.getElementById('spawn-on-connect') as HTMLButtonElement
   const deleteBtn = document.getElementById('toggle-delete-mode') as HTMLButtonElement
   const infiniteBtn = document.getElementById('toggle-infinite-mode') as HTMLButtonElement
 
@@ -115,10 +117,6 @@ function updateButtonStates(): void {
     autoBtn.style.backgroundColor = state.autoSpawnEnabled ? '#4CAF50' : '#666'
   }
 
-  if (connectBtn) {
-    connectBtn.textContent = `连接时生成: ${state.spawnOnConnect ? '开启' : '关闭'}`
-    connectBtn.style.backgroundColor = state.spawnOnConnect ? '#4CAF50' : '#666'
-  }
 
   if (deleteBtn) {
     deleteBtn.textContent = `删除模式: ${segmentDeletion.deleteMode ? '开启' : '关闭'}`
@@ -180,10 +178,12 @@ export function renderLinesPanel(): void {
     const lineTrains = state.trains.filter(t => t.lineId === l.id)
     const trainCount = lineTrains.length
     const isSelected = state.currentLineId === l.id
+    const isCollapsed = lineCollapsedState.get(l.id) ?? false // 默认展开
 
     // 线路头部
     let lineHtml = `<div style="margin:4px 0;border-radius:4px;border:1px solid ${l.color};background:${isSelected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)'};">
       <div style="display:flex;align-items:center;gap:4px;padding:8px;background:${isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'};border-radius:3px 3px 0 0;border-bottom:1px solid rgba(255,255,255,0.1);">
+        <button data-line-collapse="${l.id}" class="line-collapse" style="font-size:12px;width:20px;height:20px;padding:0;background:none;border:none;color:#ccc;cursor:pointer;border-radius:2px;margin-right:4px;" title="${isCollapsed ? '展开' : '折叠'}">${isCollapsed ? '▶' : '▼'}</button>
         <button data-line="${l.id}" class="line-select" style="font-size:14px;flex:1;text-align:left;background:none;border:none;color:#fff;cursor:pointer;padding:0;font-weight:bold;" title="选择线路">${l.name}</button>
         <span style="font-size:12px;color:#ccc;">${trainCount}辆列车</span>
         <button data-line-add-train="${l.id}" class="line-add-train" style="font-size:12px;color:#4CAF50;border:1px solid #4CAF50;background:none;cursor:pointer;padding:3px 8px;border-radius:3px;" title="添加列车">+</button>
@@ -191,26 +191,28 @@ export function renderLinesPanel(): void {
       </div>`
 
     // 列车详情
-    if (trainCount > 0) {
-      lineHtml += '<div style="padding:6px;">'
-      lineTrains.forEach((train, index) => {
-        const currentPassengers = total(train.passengersBy)
-        const capacity = train.capacity
-        const loadRatio = currentPassengers / capacity
-        const statusColor = loadRatio > 0.8 ? '#ff6b6b' : loadRatio > 0.5 ? '#ffa726' : '#66bb6a'
+    if (!isCollapsed) {
+      if (trainCount > 0) {
+        lineHtml += '<div style="padding:6px;">'
+        lineTrains.forEach((train, index) => {
+          const currentPassengers = total(train.passengersBy)
+          const capacity = train.capacity
+          const loadRatio = currentPassengers / capacity
+          const statusColor = loadRatio > 0.8 ? '#ff6b6b' : loadRatio > 0.5 ? '#ffa726' : '#66bb6a'
 
-        lineHtml += `<div style="display:flex;align-items:center;gap:8px;margin:3px 0;padding:4px;background:rgba(255,255,255,0.05);border-radius:3px;">
-          <span style="font-size:12px;color:#ccc;min-width:25px;font-weight:bold;">#${index + 1}</span>
-          <span style="font-size:12px;color:${statusColor};font-weight:bold;min-width:35px;">${currentPassengers}/${capacity}</span>
-          <div style="flex:1;height:6px;background:rgba(255,255,255,0.2);border-radius:3px;">
-            <div style="height:100%;width:${Math.min(loadRatio * 100, 100)}%;background:${statusColor};border-radius:3px;"></div>
-          </div>
-          <button data-train-upgrade="${train.id}" class="train-upgrade" style="font-size:10px;color:#2196F3;border:1px solid #2196F3;background:none;cursor:pointer;padding:2px 6px;border-radius:3px;" title="增加载客量">+载客</button>
-        </div>`
-      })
-      lineHtml += '</div>'
-    } else {
-      lineHtml += '<div style="padding:10px;text-align:center;font-size:12px;color:#666;">暂无列车</div>'
+          lineHtml += `<div style="display:flex;align-items:center;gap:8px;margin:3px 0;padding:4px;background:rgba(255,255,255,0.05);border-radius:3px;">
+            <span style="font-size:12px;color:#ccc;min-width:25px;font-weight:bold;">#${index + 1}</span>
+            <span style="font-size:12px;color:${statusColor};font-weight:bold;min-width:35px;">${currentPassengers}/${capacity}</span>
+            <div style="flex:1;height:6px;background:rgba(255,255,255,0.2);border-radius:3px;">
+              <div style="height:100%;width:${Math.min(loadRatio * 100, 100)}%;background:${statusColor};border-radius:3px;"></div>
+            </div>
+            <button data-train-upgrade="${train.id}" class="train-upgrade" style="font-size:10px;color:#2196F3;border:1px solid #2196F3;background:none;cursor:pointer;padding:2px 6px;border-radius:3px;" title="增加载客量">+载客</button>
+          </div>`
+        })
+        lineHtml += '</div>'
+      } else {
+        lineHtml += '<div style="padding:10px;text-align:center;font-size:12px;color:#666;">暂无列车</div>'
+      }
     }
 
     lineHtml += '</div>'
@@ -266,12 +268,24 @@ export function renderLinesPanel(): void {
     })
   })
 
+  // 添加折叠/展开按钮事件监听器
+  linesList.querySelectorAll('button.line-collapse').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lineId = Number((btn as HTMLButtonElement).dataset.lineCollapse)
+      const currentState = lineCollapsedState.get(lineId) ?? false
+      lineCollapsedState.set(lineId, !currentState)
+      renderLinesPanel() // 重新渲染以更新显示状态
+    })
+  })
+
   // 添加删除按钮事件监听器
   linesList.querySelectorAll('button.line-delete').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = Number((btn as HTMLButtonElement).dataset.lineDelete)
       if (confirm(`确定要删除 ${state.lines.find(l => l.id === id)?.name} 吗？`)) {
         removeLine(id)
+        // 清理折叠状态
+        lineCollapsedState.delete(id)
         renderLinesPanel()
         updateFinancialPanel()
       }
@@ -481,11 +495,10 @@ export function setupUIControls(): void {
   // 自动生成和手动生成按钮
   const btnAuto = document.getElementById('toggle-auto') as HTMLButtonElement
   const btnSpawn = document.getElementById('spawn-one') as HTMLButtonElement
-  const btnOnConnect = document.getElementById('spawn-on-connect') as HTMLButtonElement
   const btnDeleteMode = document.getElementById('toggle-delete-mode') as HTMLButtonElement
   const btnInfiniteMode = document.getElementById('toggle-infinite-mode') as HTMLButtonElement
 
-  if (btnAuto && btnSpawn && btnOnConnect && btnDeleteMode) {
+  if (btnAuto && btnSpawn && btnDeleteMode) {
     const updateLabels = () => {
       updateButtonStates()
     }
@@ -495,10 +508,6 @@ export function setupUIControls(): void {
       updateLabels()
     }
 
-    btnOnConnect.onclick = () => {
-      state.spawnOnConnect = !state.spawnOnConnect
-      updateLabels()
-    }
 
     btnDeleteMode.onclick = () => {
       if (segmentDeletion.deleteMode) {

@@ -49,7 +49,6 @@ export const state: GameState = {
   lines: [],
   trains: [],
   autoSpawnEnabled: false,
-  spawnOnConnect: false,
   gameOver: false,
   currentLineId: null,
   nextLineNum: 1,
