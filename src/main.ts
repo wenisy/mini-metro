@@ -78,7 +78,10 @@ function addStation(pos: Vec2, shape: Station['shape']): Station {
 }
 
 function addLine(color: string, a: Station, b: Station, name?: string): Line {
-  const lineName = name ?? `${state.nextLineNum++}号线`
+  const lineName = name ?? `${state.nextLineNum}号线`
+  if (!name) {
+    state.nextLineNum++
+  }
   const l: Line = { id: nextId++, name: lineName, color, stations: [a.id, b.id] }
   state.lines.push(l)
   // add one train for line by default
