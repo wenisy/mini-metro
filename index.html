@@ -23,6 +23,11 @@
           <button id="spawn-on-connect" style="font-size:12px">Spawn on Connect: Off</button>
         </div>
         <div style="margin-bottom:6px">
+          <label for="passenger-rate" style="font-size:12px">乘客生成概率: </label>
+          <input type="range" id="passenger-rate" min="0.01" max="0.5" step="0.01" value="0.05" style="width: 100px;">
+          <span id="passenger-rate-value" style="font-size:12px">0.05</span>
+        </div>
+        <div style="margin-bottom:6px">
           <button id="btn-add-train" style="font-size:12px" title="为当前线路添加列车">+ 列车</button>
           <button id="btn-capacity" style="font-size:12px" title="增加当前线路所有列车的载客量">+ 载客量</button>
         </div>

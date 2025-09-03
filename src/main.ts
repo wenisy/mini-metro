@@ -54,6 +54,7 @@ const state = {
   showLinkChooser: false,
   linkChooserFrom: null as Station | null,
   linkChooserTo: null as Station | null,
+  passengerSpawnBaseRate: 0.05, // 可调整的乘客生成基础概率
 }
 
 const COLORS = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22']
@@ -476,7 +477,7 @@ function update(dt: number) {
   maybeSpawnStations(dt)
   maybeEnsureBaselineLine()
   // spawn passenger with concrete destination (reduced spawn rate)
-  if (state.stations.length && Math.random() < dt * (0.05 + state.time*0.005)) {
+  if (state.stations.length && Math.random() < dt * (state.passengerSpawnBaseRate + state.time*0.005)) {
     const from = state.stations[Math.floor(Math.random()*state.stations.length)]
     // choose a target station with different shape; prefer connected/reachable later
     const candidates = state.stations.filter(st => st.id!==from.id && st.shape!==from.shape)
@@ -762,6 +763,19 @@ function main() {
       addStation(pos, shapes[Math.floor(Math.random()*3)])
     }
     updateLabels()
+  }
+
+  // 乘客生成概率滑块
+  const passengerRateSlider = document.getElementById('passenger-rate') as HTMLInputElement
+  const passengerRateValue = document.getElementById('passenger-rate-value') as HTMLSpanElement
+  if (passengerRateSlider && passengerRateValue) {
+    passengerRateSlider.value = state.passengerSpawnBaseRate.toString()
+    passengerRateValue.textContent = state.passengerSpawnBaseRate.toString()
+    passengerRateSlider.oninput = () => {
+      const value = parseFloat(passengerRateSlider.value)
+      state.passengerSpawnBaseRate = value
+      passengerRateValue.textContent = value.toFixed(2)
+    }
   }
 
   // HUD actions: +Train / Capacity +1 / Lines list and New Line
