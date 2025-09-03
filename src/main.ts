@@ -329,11 +329,20 @@ function renderLinesPanel() {
     console.log('linesList 元素未找到')
     return
   }
-  const html = state.lines.map(l=>`<div style="display:flex;align-items:center;gap:6px;margin:2px 0">
-    <span style="display:inline-block;width:10px;height:10px;background:${l.color};border-radius:2px"></span>
-    <button data-line="${l.id}" class="line-select" style="font-size:12px">${l.name}</button>
-    <small style="opacity:.7">${l.color}</small>
-  </div>`).join('')
+
+  const html = state.lines.map(l => {
+    const trainCount = state.trains.filter(t => t.lineId === l.id).length
+    const avgCapacity = trainCount > 0 ?
+      Math.round(state.trains.filter(t => t.lineId === l.id).reduce((sum, t) => sum + t.capacity, 0) / trainCount) : 0
+    const isSelected = state.currentLineId === l.id
+
+    return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;padding:4px;background:${isSelected ? 'rgba(255,255,255,0.1)' : 'transparent'};border-radius:4px">
+      <span style="display:inline-block;width:10px;height:10px;background:${l.color};border-radius:2px"></span>
+      <button data-line="${l.id}" class="line-select" style="font-size:12px;flex:1;text-align:left">${l.name}</button>
+      <small style="opacity:.7;font-size:10px">${trainCount}车 ${avgCapacity}座</small>
+    </div>`
+  }).join('')
+
   console.log('生成的HTML:', html)
   linesList.innerHTML = html
   linesList.querySelectorAll('button.line-select').forEach(btn=>{
@@ -341,6 +350,7 @@ function renderLinesPanel() {
       const id = Number((btn as HTMLButtonElement).dataset.line)
       state.currentLineId = id
       console.log('选中线路:', id)
+      renderLinesPanel() // Re-render to show selection
     })
   })
   console.log('renderLinesPanel 完成')
@@ -398,9 +408,27 @@ function drawStation(ctx: CanvasRenderingContext2D, s: Station) {
     case 'triangle': ctx.beginPath(); ctx.moveTo(0,-12); ctx.lineTo(10,8); ctx.lineTo(-10,8); ctx.closePath(); ctx.fill(); ctx.stroke(); break
     case 'square': ctx.beginPath(); ctx.rect(-10,-10,20,20); ctx.fill(); ctx.stroke(); break
   }
+
+  // Show passenger queue with destination breakdown
   const totalQ = total(s.queueBy)
   if (totalQ > 0) {
-    ctx.fillStyle = '#fff'; ctx.font = '12px system-ui'; ctx.fillText(String(totalQ), 12, -12)
+    ctx.fillStyle = '#fff'; ctx.font = '10px system-ui'
+
+    // Show total count
+    ctx.fillText(String(totalQ), 12, -12)
+
+    // Show destination breakdown
+    let yOffset = 0
+    const shapes: Shape[] = ['circle', 'triangle', 'square']
+    const shapeSymbols = { circle: '●', triangle: '▲', square: '■' }
+
+    shapes.forEach(shape => {
+      if (s.queueBy[shape] > 0) {
+        ctx.fillStyle = shape === 'circle' ? '#4fc3f7' : shape === 'triangle' ? '#81c784' : '#ffb74d'
+        ctx.fillText(`${shapeSymbols[shape]}${s.queueBy[shape]}`, 12, yOffset)
+        yOffset += 12
+      }
+    })
   }
   ctx.restore()
 }
@@ -447,8 +475,8 @@ function update(dt: number) {
   state.time += dt
   maybeSpawnStations(dt)
   maybeEnsureBaselineLine()
-  // spawn passenger with concrete destination
-  if (state.stations.length && Math.random() < dt * (0.2 + state.time*0.02)) {
+  // spawn passenger with concrete destination (reduced spawn rate)
+  if (state.stations.length && Math.random() < dt * (0.05 + state.time*0.005)) {
     const from = state.stations[Math.floor(Math.random()*state.stations.length)]
     // choose a target station with different shape; prefer connected/reachable later
     const candidates = state.stations.filter(st => st.id!==from.id && st.shape!==from.shape)
