@@ -116,12 +116,6 @@ function removeLine(lineId: number) {
   renderLinesPanel()
 }
 
-function toggleLine(color: string, a: Station, b: Station): 'added'|'removed'|'noop' {
-  const existing = findLineBetween(a.id, b.id)
-  if (existing) { removeLine(existing.id); return 'removed' }
-  addLine(color, a, b); return 'added'
-}
-
 function maybeEnsureBaselineLine() {
   // No longer needed since we create initial line in spawnInitialWorld
 }
