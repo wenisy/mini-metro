@@ -440,6 +440,11 @@ export function setupUIControls(): void {
     }
   }
 
+  // 游戏速度控制按钮
+  const btnSpeed1x = document.getElementById('btn-speed-1x') as HTMLButtonElement
+  const btnSpeed2x = document.getElementById('btn-speed-2x') as HTMLButtonElement
+  const btnSpeed3x = document.getElementById('btn-speed-3x') as HTMLButtonElement
+
   // 列车和容量控制按钮
   const btnAddTrain = document.getElementById('btn-add-train') as HTMLButtonElement
   const btnCap = document.getElementById('btn-capacity') as HTMLButtonElement
@@ -477,6 +482,49 @@ export function setupUIControls(): void {
       }
     }
   }
+
+  // 游戏速度控制
+  function updateSpeedButtons() {
+    if (btnSpeed1x) {
+      btnSpeed1x.style.backgroundColor = state.gameSpeed === 1 ? '#4CAF50' : '#666'
+      btnSpeed1x.style.color = state.gameSpeed === 1 ? '#fff' : '#ccc'
+    }
+    if (btnSpeed2x) {
+      btnSpeed2x.style.backgroundColor = state.gameSpeed === 2 ? '#4CAF50' : '#666'
+      btnSpeed2x.style.color = state.gameSpeed === 2 ? '#fff' : '#ccc'
+    }
+    if (btnSpeed3x) {
+      btnSpeed3x.style.backgroundColor = state.gameSpeed === 3 ? '#4CAF50' : '#666'
+      btnSpeed3x.style.color = state.gameSpeed === 3 ? '#fff' : '#ccc'
+    }
+  }
+
+  if (btnSpeed1x) {
+    btnSpeed1x.onclick = () => {
+      state.gameSpeed = 1
+      updateSpeedButtons()
+      console.log('游戏速度设置为 1x')
+    }
+  }
+
+  if (btnSpeed2x) {
+    btnSpeed2x.onclick = () => {
+      state.gameSpeed = 2
+      updateSpeedButtons()
+      console.log('游戏速度设置为 2x')
+    }
+  }
+
+  if (btnSpeed3x) {
+    btnSpeed3x.onclick = () => {
+      state.gameSpeed = 3
+      updateSpeedButtons()
+      console.log('游戏速度设置为 3x')
+    }
+  }
+
+  // 初始化速度按钮状态
+  updateSpeedButtons()
 
   // 初始化财务面板
   updateFinancialPanel()

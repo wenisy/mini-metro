@@ -68,15 +68,18 @@ function main() {
   // 初始化UI
   renderLinesPanel()
 
-  // 主循环，固定时间步长
+  // 主循环，固定时间步长，支持速度调节
   let last = performance.now()
   let acc = 0
-  const step = 1/30 // 30Hz 逻辑
+  const baseStep = 1/30 // 30Hz 基础逻辑频率
 
   function frame(now: number) {
     const dt = (now - last) / 1000
     last = now
     acc += Math.min(dt, 0.1)
+
+    // 根据游戏速度调整时间步长
+    const step = baseStep / state.gameSpeed
 
     while (acc >= step) {
       update(step)
@@ -84,7 +87,7 @@ function main() {
     }
 
     render(ctx, camera, canvas, interaction)
-    hud.textContent = `t=${state.time.toFixed(1)} s | stations=${state.stations.length} | trains=${state.trains.length}`
+    hud.textContent = `t=${state.time.toFixed(1)} s | ${state.gameSpeed}x | stations=${state.stations.length} | trains=${state.trains.length}`
     requestAnimationFrame(frame)
   }
 

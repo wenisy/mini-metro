@@ -58,6 +58,7 @@ export const state: GameState = {
   linkChooserTo: null,
   passengerSpawnBaseRate: 0.05,
   infiniteMode: false,
+  gameSpeed: 1, // 默认1倍速
 }
 
 // 经济系统状态
@@ -308,21 +309,20 @@ export function isTransferStation(stationId: number): boolean {
   return getStationLineCount(stationId) > 1
 }
 
-// 线路扩展逻辑
+// 线路扩展逻辑 - 支持从任意站点扩展
 export function canExtendLine(line: Line, from: Station, to: Station): boolean {
   const fromOnLine = line.stations.includes(from.id)
   const toOnLine = line.stations.includes(to.id)
 
+  // 如果两个站点都在线路上，不能扩展（避免创建环路）
   if (fromOnLine && toOnLine) return false
+
+  // 如果两个站点都不在线路上，不能扩展
   if (!fromOnLine && !toOnLine) return false
 
-  if (fromOnLine) {
-    const fromIndex = line.stations.indexOf(from.id)
-    return fromIndex === 0 || fromIndex === line.stations.length - 1
-  } else {
-    const toIndex = line.stations.indexOf(to.id)
-    return toIndex === 0 || toIndex === line.stations.length - 1
-  }
+  // 只要有一个站点在线路上，就可以扩展到另一个站点
+  // 这允许从线路上的任意站点进行扩展，而不仅仅是端点
+  return true
 }
 
 export function getExtendableLines(from: Station, to: Station): Line[] {

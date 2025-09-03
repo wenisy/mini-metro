@@ -102,6 +102,7 @@ export interface GameState {
   linkChooserTo: Station | null
   passengerSpawnBaseRate: number
   infiniteMode: boolean
+  gameSpeed: number // 游戏速度倍数 (1x, 2x, 3x)
 }
 
 // 相机类型
