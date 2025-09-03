@@ -1,6 +1,11 @@
 import type { Shape } from './types.js'
 import { state, zeroByShape, total, clamp, calculateDwellTime, addMoney, calculateTicketPrice } from './game-state.js'
 
+// 获取游戏速度倍数
+function getGameSpeed(): number {
+  return state.gameSpeed || 1
+}
+
 // 列车运行逻辑
 export function updateTrains(dt: number): void {
   for (const t of state.trains) {
@@ -8,11 +13,11 @@ export function updateTrains(dt: number): void {
 
     // 处理在站停留
     if (t.dwell > 0) {
-      t.dwell = Math.max(0, t.dwell - dt)
+      t.dwell = Math.max(0, t.dwell - dt * getGameSpeed())
       continue
     }
 
-    t.t += dt * 0.25
+    t.t += dt * 0.25 * getGameSpeed()
     if (t.t >= 1) {
       t.t = 0
       // 沿线路前进并在端点掉头
@@ -112,7 +117,7 @@ let spawnTimer = 0
 export function maybeSpawnStations(dt: number): void {
   if (!state.autoSpawnEnabled) return
 
-  spawnTimer += dt
+  spawnTimer += dt * getGameSpeed()
   const interval = clamp(3 - state.time * 0.02, 1, 3) // 随时间加快
 
   if (spawnTimer >= interval) {
@@ -136,7 +141,7 @@ export function maybeSpawnStations(dt: number): void {
 
 // 乘客生成逻辑
 export function spawnPassengers(dt: number): void {
-  if (state.stations.length && Math.random() < dt * (state.passengerSpawnBaseRate + state.time * 0.005)) {
+  if (state.stations.length && Math.random() < dt * getGameSpeed() * (state.passengerSpawnBaseRate + state.time * 0.005)) {
     const from = state.stations[Math.floor(Math.random() * state.stations.length)]
 
     // 选择不同形状的目标站点

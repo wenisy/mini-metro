@@ -383,10 +383,11 @@ export function isValidAttachment(candidate: AttachmentCandidate): boolean {
 // 动画函数
 export function updateAnimations(dt: number): void {
   const currentTime = performance.now()
+  const gameSpeed = state.gameSpeed || 1
 
   // 更新高亮动画
   if (smartAttachment.activeCandidate) {
-    smartAttachment.highlightIntensity += smartAttachment.highlightDirection * dt * 3
+    smartAttachment.highlightIntensity += smartAttachment.highlightDirection * dt * 3 * gameSpeed
     if (smartAttachment.highlightIntensity >= 1) {
       smartAttachment.highlightIntensity = 1
       smartAttachment.highlightDirection = -1
@@ -401,7 +402,7 @@ export function updateAnimations(dt: number): void {
 
   // 更新其他动画
   smartAttachment.animations = smartAttachment.animations.filter(anim => {
-    anim.progress = Math.min(1, (currentTime - anim.startTime) / anim.duration)
+    anim.progress = Math.min(1, (currentTime - anim.startTime) / (anim.duration / gameSpeed))
     anim.completed = anim.progress >= 1
     return !anim.completed
   })

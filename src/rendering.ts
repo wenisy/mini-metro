@@ -469,10 +469,11 @@ export function drawMoneyEffects(ctx: CanvasRenderingContext2D): void {
 // 更新金钱效果（移除已完成的效果）
 export function updateMoneyEffects(): void {
   const currentTime = performance.now()
+  const gameSpeed = state.gameSpeed || 1
 
   for (let i = moneyEffects.length - 1; i >= 0; i--) {
     const effect = moneyEffects[i]
-    const elapsed = currentTime - effect.startTime
+    const elapsed = (currentTime - effect.startTime) * gameSpeed
 
     if (elapsed >= effect.duration) {
       moneyEffects.splice(i, 1)
