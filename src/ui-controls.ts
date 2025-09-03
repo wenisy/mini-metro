@@ -69,7 +69,7 @@ export function updateGameStats(): void {
   const trainCountElement = document.getElementById('train-count')
 
   if (gameTimeElement) {
-    gameTimeElement.textContent = state.time.toFixed(1)
+    gameTimeElement.textContent = Math.floor(state.time).toString()
   }
 
   if (stationCountElement) {
