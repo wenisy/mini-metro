@@ -82,82 +82,87 @@ function collectTransferStats() {
   }
 }
 
-// 生成换乘统计HTML
+// 生成换乘统计HTML（紧凑版）
 function generateTransferStatsHTML(stats: any): string {
   let html = `
-    <div style="margin-bottom:8px;">
-      <div style="color:#81C784;">总等待: ${stats.totalWaitingPassengers} 人</div>
-      <div style="color:#FFB74D;">换乘中: ${stats.totalTransferPassengers} 人</div>
-      <div style="color:#F06292;">拥堵站: ${stats.congestionStations} 个</div>
-      <div style="color:#64B5F6;">换乘站: ${stats.transferStations} 个</div>
+    <div style="margin-bottom:6px;">
+      <div>总等待: <span style="color:#81C784;">${stats.totalWaitingPassengers}</span> 人</div>
+      <div>换乘中: <span style="color:#FFB74D;">${stats.totalTransferPassengers}</span> 人</div>
+      <div>拥堵站: <span style="color:#F06292;">${stats.congestionStations}</span> 个</div>
+      <div>换乘站: <span style="color:#64B5F6;">${stats.transferStations}</span> 个</div>
     </div>
   `
 
-  // 显示拥堵站点
+  // 显示拥堵站点（紧凑版）
   if (stats.stationStats.length > 0) {
     html += `
-      <div style="margin-bottom:8px;">
-        <div style="font-weight:bold; color:#FFA726; margin-bottom:4px;">🚨 关注站点:</div>
+      <div style="margin-bottom:6px;">
+        <div style="font-weight:bold; color:#FFA726; margin-bottom:2px;">🚨 关注站点:</div>
     `
-    
-    for (const station of stats.stationStats.slice(0, 5)) { // 只显示前5个
+
+    for (const station of stats.stationStats.slice(0, 3)) { // 只显示前3个
       const congestionColor = getCongestionColor(station.congestion)
       const transferIcon = station.isTransfer ? '🔄' : ''
-      
+
       html += `
-        <div style="font-size:10px; margin-bottom:2px; color:${congestionColor};">
-          ${transferIcon}站点${station.id}: ${station.waiting}+${station.transfer} (${station.congestion})
+        <div style="margin-bottom:1px; color:${congestionColor};">
+          ${transferIcon}站点${station.id}: ${station.waiting}+${station.transfer}
         </div>
       `
     }
-    
+
     html += `</div>`
   }
 
-  // 显示线路效率
+  // 显示线路效率（紧凑版）
   if (stats.lineStats.length > 0) {
-    html += `
-      <div style="margin-bottom:8px;">
-        <div style="font-weight:bold; color:#81C784; margin-bottom:4px;">📈 线路效率:</div>
-    `
-    
-    for (const line of stats.lineStats.slice(0, 3)) { // 只显示前3条线路
-      const loadFactor = (line.averageLoadFactor * 100).toFixed(0)
-      const loadColor = getLoadFactorColor(line.averageLoadFactor)
-      
+    const topLines = stats.lineStats
+      .filter((line: any) => line.averageLoadFactor > 0.1) // 只显示有负载的线路
+      .slice(0, 2) // 只显示前2条线路
+
+    if (topLines.length > 0) {
       html += `
-        <div style="font-size:10px; margin-bottom:2px;">
-          <span style="color:${line.color};">●</span> ${line.name}: 
-          <span style="color:${loadColor};">${loadFactor}%</span>
-          ${line.congestionPoints.length > 0 ? ` ⚠️${line.congestionPoints.length}` : ''}
-        </div>
+        <div style="margin-bottom:6px;">
+          <div style="font-weight:bold; color:#81C784; margin-bottom:2px;">📈 线路负载:</div>
       `
+
+      for (const line of topLines) {
+        const loadFactor = (line.averageLoadFactor * 100).toFixed(0)
+        const loadColor = getLoadFactorColor(line.averageLoadFactor)
+
+        html += `
+          <div style="margin-bottom:1px;">
+            <span style="color:${line.color};">●</span> ${line.name}:
+            <span style="color:${loadColor};">${loadFactor}%</span>
+            ${line.congestionPoints.length > 0 ? ` ⚠️${line.congestionPoints.length}` : ''}
+          </div>
+        `
+      }
+
+      html += `</div>`
     }
-    
-    html += `</div>`
   }
 
-  // 显示路径缓存统计
-  html += `
-    <div style="margin-bottom:8px;">
-      <div style="font-weight:bold; color:#9C27B0; margin-bottom:4px;">🧠 路径缓存:</div>
-      <div style="font-size:10px; color:#E1BEE7;">
-        缓存条目: ${stats.cacheStats.size}
-      </div>
-    </div>
-  `
-
-  // 显示系统状态
+  // 显示系统状态（紧凑版）
   const totalPassengers = stats.totalWaitingPassengers + stats.totalTransferPassengers
   const systemStatus = getSystemStatus(totalPassengers, stats.congestionStations)
-  
+
   html += `
-    <div style="margin-top:8px; padding:4px; border-radius:3px; background:${systemStatus.bgColor};">
-      <div style="font-size:10px; color:${systemStatus.textColor}; font-weight:bold;">
+    <div style="margin-top:4px; padding:3px; border-radius:3px; background:${systemStatus.bgColor};">
+      <div style="color:${systemStatus.textColor}; font-weight:bold;">
         ${systemStatus.icon} ${systemStatus.text}
       </div>
     </div>
   `
+
+  // 显示路径缓存（简化版）
+  if (stats.cacheStats.size > 0) {
+    html += `
+      <div style="margin-top:4px; color:#E1BEE7;">
+        🧠 缓存: ${stats.cacheStats.size} 条路径
+      </div>
+    `
+  }
 
   return html
 }
@@ -216,14 +221,6 @@ function getSystemStatus(totalPassengers: number, congestionStations: number): {
       bgColor: 'rgba(129, 199, 132, 0.2)',
       textColor: '#81C784'
     }
-  }
-}
-
-// 切换换乘统计面板显示/隐藏
-export function toggleTransferStats(): void {
-  const panel = document.getElementById('transfer-stats')
-  if (panel) {
-    panel.style.display = panel.style.display === 'none' ? 'block' : 'none'
   }
 }
 
