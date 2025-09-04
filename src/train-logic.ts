@@ -1,14 +1,26 @@
-import type { Shape } from './types.js'
-import { state, zeroByShape, total, clamp, calculateDwellTime, addMoney, calculateTicketPrice, updateLineStats } from './game-state.js'
+import type { Shape, PassengerInfo } from './types.js'
+import { state, zeroByShape, total, clamp, calculateDwellTime, addMoney, updateLineStats, generatePassengerId } from './game-state.js'
 import { updateTrainVisualState } from './train-visual.js'
+import { findShortestPath } from './path-planning.js'
+import { smartPassengerBoarding, smartPassengerAlighting, cleanupStrandedPassengers } from './smart-passenger.js'
 
 // 获取游戏速度倍数
 function getGameSpeed(): number {
   return state.gameSpeed || 1
 }
 
+// 清理计时器
+let cleanupTimer = 0
+
 // 列车运行逻辑
 export function updateTrains(dt: number): void {
+  // 定期清理滞留乘客
+  cleanupTimer += dt * getGameSpeed()
+  if (cleanupTimer >= 10) { // 每10秒清理一次
+    cleanupStrandedPassengers()
+    cleanupTimer = 0
+  }
+
   for (const t of state.trains) {
     const line = state.lines.find(l => l.id === t.lineId)!
 
@@ -39,80 +51,30 @@ export function updateTrains(dt: number): void {
         t.atIndex = clamp(t.atIndex + (t.dir > 0 ? 1 : -1), 0, last)
       }
 
-      // 服务站点：卸载/装载
+      // 服务站点：智能乘客上下车
       const sid = line.stations[t.atIndex]
       const s = state.stations.find(st => st.id === sid)!
 
-      // 卸载匹配的乘客并计算收入
-      const passengersToUnload = t.passengersBy[s.shape]
-      if (passengersToUnload > 0) {
-        // 计算这些乘客的收入
-        let totalIncome = 0
+      // 智能乘客下车逻辑
+      const alightedPassengers = smartPassengerAlighting(t, s)
 
-        // 检查按目的地分类的乘客
-        for (const destIdStr of Object.keys(t.passengersTo)) {
-          const destId = Number(destIdStr)
-          if (destId === sid) {
-            const passengersAtDest = t.passengersTo[destId]
-            if (passengersAtDest && passengersAtDest[s.shape] > 0) {
-              const count = passengersAtDest[s.shape]
-              const ticketPrice = calculateTicketPrice(destId, sid, s.shape) // 注意：这里需要起始站信息
-              totalIncome += count * ticketPrice
+      // 计算收入（基于实际下车的乘客）
+      let totalIncome = 0
+      if (alightedPassengers > 0) {
+        // 使用平均票价计算收入
+        const averageTicketPrice = 25
+        totalIncome = alightedPassengers * averageTicketPrice
 
-              // 清除已下车的乘客
-              passengersAtDest[s.shape] = 0
-            }
-          }
-        }
-
-        // 如果没有具体的起始站信息，使用平均票价
-        if (totalIncome === 0 && passengersToUnload > 0) {
-          const averageTicketPrice = 25 // 平均票价
-          totalIncome = passengersToUnload * averageTicketPrice
-        }
-
-        // 添加收入
-        if (totalIncome > 0) {
-          addMoney(totalIncome, `运输${passengersToUnload}名${s.shape}乘客`, s.pos)
-          // 更新线路统计
-          updateLineStats(t.lineId, passengersToUnload, totalIncome)
-        }
+        addMoney(totalIncome, `运输${alightedPassengers}名乘客到达目的地`, s.pos)
+        updateLineStats(t.lineId, alightedPassengers, totalIncome)
       }
-
-      t.passengersBy[s.shape] = 0
 
       // 开始停车 - 使用动态停车时间（换乘站停留更久）
       const dwellTime = calculateDwellTime(sid)
       t.dwell = Math.max(t.dwell, dwellTime)
 
-      // 根据剩余容量装载乘客
-      let capacityLeft = t.capacity - total(t.passengersBy)
-      const order: Shape[] = ['circle', 'triangle', 'square', 'star', 'heart']
-
-      for (const sh of order) {
-        if (capacityLeft <= 0) break
-
-        // 如果有按目的地分类的乘客，从任何目的地桶中取出该形状的乘客
-        let remain = capacityLeft
-        for (const destIdStr of Object.keys(s.queueTo)) {
-          if (remain <= 0) break
-          const destId = Number(destIdStr)
-          const perDest = s.queueTo[destId]
-          const have = perDest?.[sh] || 0
-          if (have > 0) {
-            const take = Math.min(have, remain)
-            perDest[sh] -= take
-            s.queueBy[sh] -= take
-
-            // 添加到列车的按目的地分类的乘客中
-            t.passengersTo[destId] = t.passengersTo[destId] || zeroByShape()
-            t.passengersTo[destId][sh] = (t.passengersTo[destId][sh] || 0) + take
-            t.passengersBy[sh] += take
-            remain -= take
-          }
-        }
-        capacityLeft = remain
-      }
+      // 智能乘客上车逻辑
+      smartPassengerBoarding(t, s)
     }
   }
 }
@@ -148,7 +110,7 @@ export function maybeSpawnStations(dt: number): void {
   }
 }
 
-// 乘客生成逻辑
+// 智能乘客生成逻辑
 export function spawnPassengers(dt: number): void {
   if (state.stations.length && Math.random() < dt * getGameSpeed() * (state.passengerSpawnBaseRate + state.time * 0.005)) {
     const from = state.stations[Math.floor(Math.random() * state.stations.length)]
@@ -159,9 +121,30 @@ export function spawnPassengers(dt: number): void {
       const to = candidates[Math.floor(Math.random() * candidates.length)]
       const targetShape: Shape = to.shape
 
+      // 计算路径
+      const route = findShortestPath(from.id, to.id)
+
+      // 创建乘客信息
+      const passenger: PassengerInfo = {
+        id: generatePassengerId(),
+        shape: targetShape,
+        fromStationId: from.id,
+        toStationId: to.id,
+        route: route,
+        currentStep: 0,
+        isWaitingForTransfer: false,
+        boardTime: state.time
+      }
+
+      // 添加到站点的等待队列
+      from.waitingPassengers.push(passenger)
+
+      // 更新传统的计数器（保持兼容性）
       from.queueBy[targetShape] = Math.min(99, from.queueBy[targetShape] + 1)
       from.queueTo[to.id] = from.queueTo[to.id] || zeroByShape()
       from.queueTo[to.id][targetShape] = Math.min(99, (from.queueTo[to.id][targetShape] || 0) + 1)
+
+      console.log(`🚶 新乘客生成: ${passenger.id} 从 ${from.id} 到 ${to.id}, 路径: ${route ? `${route.steps.length}步, ${route.transferCount}次换乘` : '无路径'}`)
 
       // 检查游戏结束条件
       if (total(from.queueBy) >= 12) { // QUEUE_FAIL

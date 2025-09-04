@@ -10,6 +10,7 @@ import { setupUIControls } from './ui-controls.js'
 import { renderLinesPanel } from './ui-lines.js'
 import { showLinkChooser, hideLinkChooser } from './ui-connection.js'
 import { updateFinancialPanel, updateGameStats } from './ui-panels.js'
+import { updateTransferStats } from './ui-transfer-stats.js'
 
 // 基础游戏引导：DPR感知画布，固定时间步长循环，指针输入
 
@@ -50,6 +51,7 @@ function update(dt: number) {
   if (Math.floor(state.time * 10) % 10 === 0) {
     updateFinancialPanel()
     updateGameStats()
+    updateTransferStats()  // 更新换乘统计
     // 实时更新线路面板数据
     renderLinesPanel()
   }

@@ -1,5 +1,6 @@
 import type { Vec2, Station, Line, Train, Shape } from './types.js'
 import { state, total, isTransferStation, getStationLineCount, moneyEffects } from './game-state.js'
+import { getTotalWaitingPassengers, getStationCongestionLevel } from './smart-passenger.js'
 import { smartAttachment, segmentDeletion } from './smart-attachment.js'
 import { getTrainDisplayLength, getTrainDisplayColor, getPulseIntensity, trainVisualConfig, getLoadRatio, getTrainShadowIntensity, shouldShowWarning } from './train-visual.js'
 
@@ -84,8 +85,9 @@ export function drawStation(ctx: CanvasRenderingContext2D, s: Station): void {
       break
   }
 
-  // 绘制容量可视化圆圈
-  const totalPassengers = total(s.queueBy)
+  // 绘制容量可视化圆圈（使用智能乘客系统）
+  const totalPassengers = getTotalWaitingPassengers(s)
+  const congestionLevel = getStationCongestionLevel(s)
   const fillRatio = Math.min(totalPassengers / s.capacity, 1)
 
   // 外圈（空心）
@@ -95,9 +97,23 @@ export function drawStation(ctx: CanvasRenderingContext2D, s: Station): void {
   ctx.arc(0, 0, capacityRadius, 0, Math.PI * 2)
   ctx.stroke()
 
-  // 内圈（实心，根据乘客数量）
+  // 内圈（实心，根据拥堵程度着色）
   if (fillRatio > 0) {
-    ctx.fillStyle = fillRatio > 0.8 ? '#ff6b6b' : fillRatio > 0.6 ? '#ffa726' : '#66bb6a'
+    switch (congestionLevel) {
+      case 'low':
+        ctx.fillStyle = '#66bb6a' // 绿色
+        break
+      case 'medium':
+        ctx.fillStyle = '#ffa726' // 橙色
+        break
+      case 'high':
+        ctx.fillStyle = '#ff6b6b' // 红色
+        break
+      case 'critical':
+        ctx.fillStyle = '#d32f2f' // 深红色
+        break
+    }
+
     ctx.beginPath()
     ctx.arc(0, 0, capacityRadius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * fillRatio)
     ctx.lineTo(0, 0)
@@ -105,18 +121,39 @@ export function drawStation(ctx: CanvasRenderingContext2D, s: Station): void {
     ctx.fill()
   }
 
-  // 显示容量数字
+  // 显示容量数字和换乘信息
   ctx.fillStyle = '#fff'
   ctx.font = '10px system-ui'
   ctx.textAlign = 'center'
-  ctx.fillText(`${totalPassengers}/${s.capacity}`, 0, capacityRadius + 16)
 
-  // 换乘站标识
+  // 显示等待乘客数（普通 + 换乘）
+  const waitingCount = s.waitingPassengers.length
+  const transferCount = s.transferPassengers.length
+  if (transferCount > 0) {
+    ctx.fillText(`${waitingCount}+${transferCount}/${s.capacity}`, 0, capacityRadius + 16)
+  } else {
+    ctx.fillText(`${totalPassengers}/${s.capacity}`, 0, capacityRadius + 16)
+  }
+
+  // 换乘站标识和拥堵警告
   if (isTransferStation(s.id)) {
     const lineCount = getStationLineCount(s.id)
     ctx.fillStyle = '#ffd700' // 金色
     ctx.font = '8px system-ui'
     ctx.fillText(`换乘(${lineCount})`, 0, capacityRadius + 28)
+
+    // 显示换乘乘客数量
+    if (transferCount > 0) {
+      ctx.fillStyle = '#ff9800'
+      ctx.fillText(`🔄${transferCount}`, 0, capacityRadius + 40)
+    }
+  }
+
+  // 拥堵警告
+  if (congestionLevel === 'critical') {
+    ctx.fillStyle = '#ff1744'
+    ctx.font = 'bold 8px system-ui'
+    ctx.fillText('⚠️拥堵', 0, capacityRadius + (isTransferStation(s.id) ? 52 : 40))
   }
 
   // 显示乘客队列详情

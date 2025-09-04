@@ -12,6 +12,8 @@ export interface Station {
   capacity: number
   queueBy: Record<Shape, number>
   queueTo: Record<number, Record<Shape, number>>
+  waitingPassengers: PassengerInfo[]  // 新增：等待中的乘客详细信息
+  transferPassengers: PassengerInfo[] // 新增：换乘等待中的乘客
 }
 
 export interface Line {
@@ -38,6 +40,33 @@ export interface TrainVisualState {
   lastUpdateTime: number      // 上次更新时间
 }
 
+// 路径规划相关类型
+export interface RouteStep {
+  stationId: number
+  lineId: number
+  isTransfer: boolean
+}
+
+export interface PassengerRoute {
+  from: number
+  to: number
+  steps: RouteStep[]
+  totalDistance: number
+  transferCount: number
+  estimatedTime: number
+}
+
+export interface PassengerInfo {
+  id: string
+  shape: Shape
+  fromStationId: number
+  toStationId: number
+  route: PassengerRoute | null
+  currentStep: number
+  isWaitingForTransfer: boolean
+  boardTime: number
+}
+
 export interface Train {
   id: number
   lineId: number
@@ -47,6 +76,7 @@ export interface Train {
   capacity: number
   passengersBy: Record<Shape, number>
   passengersTo: Record<number, Record<Shape, number>>
+  passengers: PassengerInfo[]  // 新增：详细乘客信息
   dwell: number
   visual?: TrainVisualState   // 可选的视觉状态
 }

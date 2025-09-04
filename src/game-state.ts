@@ -99,6 +99,12 @@ export let nextTransactionId = 1
 let nextEffectId = 1
 
 export let nextId = 1
+export let nextPassengerId = 1
+
+// 生成唯一的乘客ID
+export function generatePassengerId(): string {
+  return `passenger_${nextPassengerId++}`
+}
 
 // 工具函数
 export function zeroByShape(): Record<Shape, number> {
@@ -214,7 +220,9 @@ export function addStation(pos: Vec2, shape?: Station['shape'], size?: Station['
     size: stationSize,
     capacity,
     queueBy: zeroByShape(),
-    queueTo: {}
+    queueTo: {},
+    waitingPassengers: [],     // 新增：等待中的乘客
+    transferPassengers: []     // 新增：换乘等待中的乘客
   }
   state.stations.push(s)
   return s
@@ -351,6 +359,11 @@ export function addLine(color: string | null, a: Station, b: Station, name?: str
   }
   state.lines.push(l)
 
+  // 清空路径缓存，因为网络结构已改变
+  import('./path-planning.js').then(({ clearRouteCache }) => {
+    clearRouteCache()
+  })
+
   // 默认添加一辆列车（免费，包含在线路建设费用中）
   state.trains.push({
     id: nextId++,
@@ -361,6 +374,7 @@ export function addLine(color: string | null, a: Station, b: Station, name?: str
     capacity: 6,
     passengersBy: zeroByShape(),
     passengersTo: {},
+    passengers: [],           // 新增：详细乘客信息
     dwell: 0
   })
 
@@ -387,6 +401,11 @@ export function removeLine(lineId: number): void {
   if (state.lines.length === 0) {
     state.nextLineNum = 1
   }
+
+  // 清空路径缓存，因为网络结构已改变
+  import('./path-planning.js').then(({ clearRouteCache }) => {
+    clearRouteCache()
+  })
 }
 
 // 换乘站检测和停车时间计算
@@ -474,6 +493,7 @@ export function addTrain(lineId: number, pos?: Vec2): boolean {
     capacity: 6,
     passengersBy: zeroByShape(),
     passengersTo: {},
+    passengers: [],           // 新增：详细乘客信息
     dwell: 0
   })
 
@@ -691,7 +711,10 @@ export function spawnInitialWorld(): void {
 }
 
 // 设置ID计数器（用于数据导入）
-export function setNextIds(newNextId: number, newNextTransactionId: number): void {
+export function setNextIds(newNextId: number, newNextTransactionId: number, newNextPassengerId?: number): void {
   nextId = newNextId
   nextTransactionId = newNextTransactionId
+  if (newNextPassengerId !== undefined) {
+    nextPassengerId = newNextPassengerId
+  }
 }
