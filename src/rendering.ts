@@ -33,9 +33,20 @@ export function drawStation(ctx: CanvasRenderingContext2D, s: Station): void {
   const baseSize = s.size === 'small' ? 8 : s.size === 'medium' ? 12 : 16
   const capacityRadius = baseSize + 6
 
+  // 检查站点是否在聚焦线路上
+  const isOnFocusedLine = state.focusedLineId !== null &&
+    state.lines.find(l => l.id === state.focusedLineId)?.stations.includes(s.id)
+  const hasFocusedLine = state.focusedLineId !== null
+
   ctx.lineWidth = 2
   ctx.strokeStyle = '#fff'
   ctx.fillStyle = '#111'
+
+  // 应用聚焦效果
+  if (hasFocusedLine && !isOnFocusedLine) {
+    // 不在聚焦线路上的站点：降低透明度
+    ctx.globalAlpha = 0.4
+  }
 
   // 绘制站点图形
   switch (s.shape) {
@@ -185,8 +196,34 @@ export function drawLine(ctx: CanvasRenderingContext2D, line: Line): void {
   ctx.save()
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
-  ctx.strokeStyle = line.color
-  ctx.lineWidth = 6
+
+  // 检查是否有聚焦线路
+  const isFocused = state.focusedLineId === line.id
+  const hasFocusedLine = state.focusedLineId !== null
+
+  if (hasFocusedLine) {
+    if (isFocused) {
+      // 聚焦线路：增加宽度，提高亮度，添加发光效果
+      ctx.strokeStyle = line.color
+      ctx.lineWidth = 10
+
+      // 添加发光效果
+      ctx.shadowColor = line.color
+      ctx.shadowBlur = 8
+      ctx.shadowOffsetX = 0
+      ctx.shadowOffsetY = 0
+    } else {
+      // 非聚焦线路：降低透明度
+      ctx.strokeStyle = line.color
+      ctx.globalAlpha = 0.3
+      ctx.lineWidth = 6
+    }
+  } else {
+    // 没有聚焦线路时的正常显示
+    ctx.strokeStyle = line.color
+    ctx.lineWidth = 6
+  }
+
   ctx.beginPath()
   pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))
   ctx.stroke()
@@ -214,6 +251,16 @@ export function drawTrain(ctx: CanvasRenderingContext2D, t: Train): void {
   const y = a.y + (b.y - a.y) * t.t
 
   ctx.save()
+
+  // 检查列车是否在聚焦线路上
+  const isOnFocusedLine = state.focusedLineId === t.lineId
+  const hasFocusedLine = state.focusedLineId !== null
+
+  // 应用聚焦效果
+  if (hasFocusedLine && !isOnFocusedLine) {
+    // 不在聚焦线路上的列车：降低透明度
+    ctx.globalAlpha = 0.4
+  }
 
   // 使用新的视觉系统获取列车属性
   const trainLength = getTrainDisplayLength(t)

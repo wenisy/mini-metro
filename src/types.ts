@@ -113,6 +113,7 @@ export interface GameState {
    autoSpawnEnabled: boolean
    gameOver: boolean
    currentLineId: number | null
+   focusedLineId: number | null // 聚焦的线路ID，用于高亮显示
    nextLineNum: number
    showLinkChooser: boolean
    linkChooserFrom: Station | null

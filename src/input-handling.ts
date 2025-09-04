@@ -79,6 +79,19 @@ export function setupInput(canvas: HTMLCanvasElement, camera: Camera, showLinkCh
             interaction.selectedLine = null
             hideLinkChooser()
           }
+
+          // 点击空白区域取消线路聚焦
+          import('./game-state.js').then(({ state }) => {
+            if (state.focusedLineId !== null) {
+              state.focusedLineId = null
+              console.log('点击空白区域，取消线路聚焦')
+              // 重新渲染线路面板以更新UI状态
+              import('./ui-lines.js').then(({ renderLinesPanel }) => {
+                renderLinesPanel()
+              })
+            }
+          })
+
           isPanning = true
         }
       }
@@ -186,6 +199,21 @@ export function setupInput(canvas: HTMLCanvasElement, camera: Camera, showLinkCh
       import('./game-state.js').then(({ state }) => {
         state.paused = !state.paused
         console.log(`游戏${state.paused ? '已暂停' : '已恢复'}`)
+      })
+    }
+
+    // Escape键取消线路聚焦
+    if (e.code === 'Escape') {
+      e.preventDefault()
+      import('./game-state.js').then(({ state }) => {
+        if (state.focusedLineId !== null) {
+          state.focusedLineId = null
+          console.log('按Escape键取消线路聚焦')
+          // 重新渲染线路面板
+          import('./ui-lines.js').then(({ renderLinesPanel }) => {
+            renderLinesPanel()
+          })
+        }
       })
     }
   })

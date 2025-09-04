@@ -71,6 +71,7 @@ export const state: GameState = {
    autoSpawnEnabled: false,
    gameOver: false,
    currentLineId: null,
+   focusedLineId: null, // 新增：聚焦的线路ID，用于高亮显示
    nextLineNum: 1,
    showLinkChooser: false,
    linkChooserFrom: null,

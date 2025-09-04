@@ -17,6 +17,22 @@ export function renderLinesPanel(): void {
     return
   }
 
+  // 如果有聚焦线路，添加取消聚焦按钮
+  let focusControlHtml = ''
+  if (state.focusedLineId !== null) {
+    const focusedLine = state.lines.find(l => l.id === state.focusedLineId)
+    if (focusedLine) {
+      focusControlHtml = `
+        <div style="margin-bottom:8px;padding:6px;border-radius:4px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:12px;color:#ccc;">🎯 聚焦: ${focusedLine.name}</span>
+            <button id="clear-focus" style="font-size:11px;padding:2px 6px;background:#666;color:#fff;border:none;border-radius:3px;cursor:pointer;" title="取消聚焦">✕</button>
+          </div>
+        </div>
+      `
+    }
+  }
+
   // 按照线路名称排序（提取数字部分进行排序）
   const sortedLines = state.lines.slice().sort((a, b) => {
     const aMatch = a.name.match(/(\d+)/)
@@ -32,6 +48,7 @@ export function renderLinesPanel(): void {
     const lineTrains = state.trains.filter(t => t.lineId === l.id)
     const trainCount = lineTrains.length
     const isSelected = state.currentLineId === l.id
+    const isFocused = state.focusedLineId === l.id
     const isCollapsed = lineCollapsedState.get(l.id) ?? false // 默认展开
 
     // 获取线路统计信息
@@ -39,13 +56,21 @@ export function renderLinesPanel(): void {
     const totalPassengers = stats.totalPassengersTransported
     const totalIncome = stats.totalIncome
 
+    // 根据聚焦状态调整样式
+    const borderColor = isFocused ? l.color : l.color
+    const borderWidth = isFocused ? '2px' : '1px'
+    const backgroundColor = isFocused ? 'rgba(255,255,255,0.15)' : (isSelected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)')
+    const headerBackground = isFocused ? 'rgba(255,255,255,0.2)' : (isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)')
+    const focusIndicator = isFocused ? '🎯 ' : ''
+    const boxShadow = isFocused ? `box-shadow: 0 0 8px ${l.color}40;` : ''
+
     // 线路头部
-    let lineHtml = `<div style="margin:4px 0;border-radius:4px;border:1px solid ${l.color};background:${isSelected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)'};">
-      <div style="display:flex;align-items:center;gap:4px;padding:8px;background:${isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)'};border-radius:3px 3px 0 0;border-bottom:1px solid rgba(255,255,255,0.1);">
+    let lineHtml = `<div style="margin:4px 0;border-radius:4px;border:${borderWidth} solid ${borderColor};background:${backgroundColor};${boxShadow}">
+      <div style="display:flex;align-items:center;gap:4px;padding:8px;background:${headerBackground};border-radius:3px 3px 0 0;border-bottom:1px solid rgba(255,255,255,0.1);">
         <button data-line-collapse="${l.id}" class="line-collapse" style="font-size:12px;width:20px;height:20px;padding:0;background:none;border:none;color:#ccc;cursor:pointer;border-radius:2px;" title="${isCollapsed ? '展开' : '折叠'}">${isCollapsed ? '▶' : '▼'}</button>
-        <button data-line="${l.id}" class="line-select" style="font-size:14px;flex:1;text-align:left;background:none;border:none;color:#fff;cursor:pointer;padding:0;font-weight:bold;display:flex;align-items:center;gap:6px;" title="选择线路">
-          <div style="width:12px;height:12px;border-radius:50%;background:${l.color};border:1px solid rgba(255,255,255,0.3);flex-shrink:0;"></div>
-          <span>${l.name}</span>
+        <button data-line="${l.id}" class="line-select" style="font-size:14px;flex:1;text-align:left;background:none;border:none;color:#fff;cursor:pointer;padding:0;font-weight:bold;display:flex;align-items:center;gap:6px;" title="${isFocused ? '点击取消聚焦' : '点击聚焦线路'}">
+          <div style="width:12px;height:12px;border-radius:50%;background:${l.color};border:1px solid rgba(255,255,255,0.3);flex-shrink:0;${isFocused ? 'box-shadow: 0 0 4px ' + l.color + ';' : ''}"></div>
+          <span>${focusIndicator}${l.name}</span>
         </button>
         <span style="font-size:11px;color:#ccc;">${trainCount}辆</span>
         <div style="display:flex;gap:2px;align-items:center;">
@@ -92,14 +117,37 @@ export function renderLinesPanel(): void {
   }).join('')
 
   console.log('生成的HTML:', html)
-  linesList.innerHTML = html
+  linesList.innerHTML = focusControlHtml + html
+
+  // 添加取消聚焦按钮事件监听器
+  const clearFocusBtn = document.getElementById('clear-focus')
+  if (clearFocusBtn) {
+    clearFocusBtn.addEventListener('click', () => {
+      state.focusedLineId = null
+      console.log('手动取消线路聚焦')
+      renderLinesPanel()
+    })
+  }
 
   // 添加线路选择事件监听器
   linesList.querySelectorAll('button.line-select').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = Number((btn as HTMLButtonElement).dataset.line)
+
+      // 实现聚焦切换逻辑
+      if (state.focusedLineId === id) {
+        // 如果点击的是已聚焦的线路，取消聚焦
+        state.focusedLineId = null
+        console.log('取消线路聚焦')
+      } else {
+        // 聚焦新线路
+        state.focusedLineId = id
+        console.log('聚焦线路:', id)
+      }
+
+      // 保持原有的currentLineId逻辑
       state.currentLineId = id
-      console.log('选中线路:', id)
+
       renderLinesPanel() // 重新渲染以显示选择状态
       // 导入updateFinancialPanel以避免循环依赖
       import('./ui-panels.js').then(({ updateFinancialPanel }) => {
