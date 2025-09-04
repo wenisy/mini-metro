@@ -134,10 +134,13 @@ export function maybeSpawnStations(dt: number): void {
     const shape = shapes[Math.floor(Math.random() * shapes.length)]
 
     // 动态导入addStationSafely以避免循环依赖
-    import('./game-state.js').then(({ addStationSafely }) => {
-      const newStation = addStationSafely(undefined, shape)
+    Promise.all([
+      import('./game-state.js'),
+      import('./rendering.js')
+    ]).then(([{ addStationSafely }, { globalCamera }]) => {
+      const newStation = addStationSafely(undefined, shape, undefined, globalCamera)
       if (newStation) {
-        console.log(`✅ 自动生成新站点: ${newStation.shape} (ID: ${newStation.id})`)
+        console.log(`✅ 自动生成新站点: ${newStation.shape} (ID: ${newStation.id}) 位置: (${Math.round(newStation.pos.x)}, ${Math.round(newStation.pos.y)})`)
       } else {
         console.log(`⚠️ 无法生成新站点，可能空间不足`)
       }

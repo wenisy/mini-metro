@@ -17,6 +17,14 @@ export class Camera {
   }
 }
 
+// 全局摄像机实例引用
+export let globalCamera: Camera | null = null
+
+// 设置全局摄像机引用
+export function setGlobalCamera(camera: Camera): void {
+  globalCamera = camera
+}
+
 // 绘制站点
 export function drawStation(ctx: CanvasRenderingContext2D, s: Station): void {
   ctx.save()

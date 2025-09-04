@@ -2,7 +2,7 @@ import './style.css'
 
 // 导入模块化的代码
 import { state, spawnInitialWorld } from './game-state.js'
-import { Camera, render, updateMoneyEffects } from './rendering.js'
+import { Camera, render, updateMoneyEffects, setGlobalCamera } from './rendering.js'
 import { setupInput, interaction } from './input-handling.js'
 import { updateAnimations } from './smart-attachment.js'
 import { updateTrains, maybeSpawnStations, spawnPassengers } from './train-logic.js'
@@ -61,6 +61,9 @@ function main() {
   const hud = document.getElementById('hud') as HTMLDivElement
   const { ctx } = setupCanvas(canvas)
   const camera = new Camera()
+
+  // 设置全局摄像机引用
+  setGlobalCamera(camera)
 
   // 设置输入处理
   setupInput(canvas, camera, showLinkChooser, hideLinkChooser)

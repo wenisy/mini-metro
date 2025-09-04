@@ -1,6 +1,7 @@
-import { state, toggleInfiniteMode, addStationSafely } from './game-state.js'
+import { state, toggleInfiniteMode, addStationSafely, STATION_SPAWN_CONFIG } from './game-state.js'
 import { enableSegmentDeletionMode, disableSegmentDeletionMode, segmentDeletion } from './smart-attachment.js'
 import { exportGameData, importGameData, createFileInput } from './data-manager.js'
+import { globalCamera } from './rendering.js'
 
 // 设置UI控件
 export function setupUIControls(): void {
@@ -10,8 +11,9 @@ export function setupUIControls(): void {
   const btnDeleteMode = document.getElementById('toggle-delete-mode') as HTMLButtonElement
   const btnInfiniteMode = document.getElementById('toggle-infinite-mode') as HTMLButtonElement
   const btnPause = document.getElementById('toggle-pause') as HTMLButtonElement
+  const btnViewportSpawn = document.getElementById('toggle-viewport-spawn') as HTMLButtonElement
 
-  if (btnAuto && btnSpawn && btnDeleteMode && btnPause) {
+  if (btnAuto && btnSpawn && btnDeleteMode && btnPause && btnViewportSpawn) {
     const updateLabels = () => {
       updateButtonStates()
     }
@@ -51,14 +53,24 @@ export function setupUIControls(): void {
       }
     }
 
+    // 视野内生成按钮事件处理
+    if (btnViewportSpawn) {
+      btnViewportSpawn.onclick = () => {
+        STATION_SPAWN_CONFIG.useViewportBasedSpawn = !STATION_SPAWN_CONFIG.useViewportBasedSpawn
+        updateLabels()
+        console.log(`视野内生成: ${STATION_SPAWN_CONFIG.useViewportBasedSpawn ? '开启' : '关闭'}`)
+      }
+    }
+
     btnSpawn.onclick = () => {
       // 使用改进的安全站点生成函数
       const shapes = ['circle', 'triangle', 'square', 'star', 'heart'] as const
       const randomShape = shapes[Math.floor(Math.random() * shapes.length)]
 
-      const newStation = addStationSafely(undefined, randomShape)
+      // 传递全局摄像机引用以支持基于视野的生成
+      const newStation = addStationSafely(undefined, randomShape, undefined, globalCamera)
       if (newStation) {
-        console.log(`✅ 手动生成新站点: ${newStation.shape} (ID: ${newStation.id})`)
+        console.log(`✅ 手动生成新站点: ${newStation.shape} (ID: ${newStation.id}) 位置: (${Math.round(newStation.pos.x)}, ${Math.round(newStation.pos.y)})`)
       } else {
         alert('⚠️ 无法生成新站点，可能空间不足。请尝试删除一些现有站点或扩大游戏区域。')
       }
@@ -207,6 +219,7 @@ function updateButtonStates(): void {
   const deleteBtn = document.getElementById('toggle-delete-mode') as HTMLButtonElement
   const infiniteBtn = document.getElementById('toggle-infinite-mode') as HTMLButtonElement
   const pauseBtn = document.getElementById('toggle-pause') as HTMLButtonElement
+  const viewportSpawnBtn = document.getElementById('toggle-viewport-spawn') as HTMLButtonElement
 
 
   // 更新设置按钮
@@ -232,5 +245,10 @@ function updateButtonStates(): void {
 
   if (spawnBtn) {
     spawnBtn.style.backgroundColor = '#666'
+  }
+
+  if (viewportSpawnBtn) {
+    viewportSpawnBtn.textContent = `📍 视野内生成: ${STATION_SPAWN_CONFIG.useViewportBasedSpawn ? '开启' : '关闭'}`
+    viewportSpawnBtn.style.backgroundColor = STATION_SPAWN_CONFIG.useViewportBasedSpawn ? '#4CAF50' : '#666'
   }
 }

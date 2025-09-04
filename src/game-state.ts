@@ -28,7 +28,11 @@ export const STATION_SPAWN_CONFIG = {
   maxRetries: 50,          // 最大重试次数（增加重试次数）
   spawnAreaMargin: 80,     // 生成区域边距
   getSpawnAreaWidth: () => Math.max(800, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 200),   // 动态宽度
-  getSpawnAreaHeight: () => Math.max(600, (typeof window !== 'undefined' ? window.innerHeight : 800) - 200)  // 动态高度
+  getSpawnAreaHeight: () => Math.max(600, (typeof window !== 'undefined' ? window.innerHeight : 800) - 200),  // 动态高度
+  // 新增：基于摄像机视野的生成区域配置
+  useViewportBasedSpawn: true,  // 是否使用基于视野的生成
+  viewportMarginRatio: 0.15,    // 视野边距比例（15%的边距，确保站点不会太靠近边缘）
+  maxViewportScale: 2.0         // 最大视野缩放倍数（防止在高缩放时生成区域过小）
 }
 
 // 经济系统配置
@@ -122,11 +126,58 @@ export function isPositionValidForStation(pos: Vec2, minDistance: number = STATI
 }
 
 // 生成一个有效的站点位置
-export function generateValidStationPosition(maxRetries: number = STATION_SPAWN_CONFIG.maxRetries): Vec2 | null {
+export function generateValidStationPosition(maxRetries: number = STATION_SPAWN_CONFIG.maxRetries, camera?: any): Vec2 | null {
   for (let tries = 0; tries < maxRetries; tries++) {
-    const pos = {
-      x: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.getSpawnAreaWidth(),
-      y: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.getSpawnAreaHeight()
+    let pos: Vec2
+
+    if (STATION_SPAWN_CONFIG.useViewportBasedSpawn && camera && typeof window !== 'undefined') {
+      // 基于摄像机视野生成站点
+      const canvas = document.getElementById('game') as HTMLCanvasElement
+      if (canvas) {
+        // 计算当前视野的世界坐标范围，考虑缩放限制
+        const effectiveScale = Math.min(camera.scale, STATION_SPAWN_CONFIG.maxViewportScale)
+        const viewportWidth = canvas.clientWidth / effectiveScale
+        const viewportHeight = canvas.clientHeight / effectiveScale
+
+        // 添加边距
+        const marginX = viewportWidth * STATION_SPAWN_CONFIG.viewportMarginRatio
+        const marginY = viewportHeight * STATION_SPAWN_CONFIG.viewportMarginRatio
+
+        // 在当前视野范围内生成（减去边距）
+        const minX = camera.pos.x + marginX
+        const maxX = camera.pos.x + viewportWidth - marginX
+        const minY = camera.pos.y + marginY
+        const maxY = camera.pos.y + viewportHeight - marginY
+
+        // 确保生成区域有效（宽度和高度都大于0）
+        if (maxX > minX && maxY > minY) {
+          pos = {
+            x: minX + Math.random() * (maxX - minX),
+            y: minY + Math.random() * (maxY - minY)
+          }
+
+          console.log(`🎯 基于视野生成站点: 缩放=${camera.scale.toFixed(2)}, 有效缩放=${effectiveScale.toFixed(2)}, 视野范围 (${Math.round(minX)}, ${Math.round(minY)}) 到 (${Math.round(maxX)}, ${Math.round(maxY)}), 生成位置 (${Math.round(pos.x)}, ${Math.round(pos.y)})`)
+        } else {
+          // 生成区域无效，回退到原始方法
+          console.warn('⚠️ 视野生成区域无效，回退到固定区域生成')
+          pos = {
+            x: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.getSpawnAreaWidth(),
+            y: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.getSpawnAreaHeight()
+          }
+        }
+      } else {
+        // 回退到原始方法
+        pos = {
+          x: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.getSpawnAreaWidth(),
+          y: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.getSpawnAreaHeight()
+        }
+      }
+    } else {
+      // 使用原始的固定区域生成方法
+      pos = {
+        x: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.getSpawnAreaWidth(),
+        y: STATION_SPAWN_CONFIG.spawnAreaMargin + Math.random() * STATION_SPAWN_CONFIG.getSpawnAreaHeight()
+      }
     }
 
     if (isPositionValidForStation(pos)) {
@@ -169,14 +220,14 @@ export function addStation(pos: Vec2, shape?: Station['shape'], size?: Station['
 }
 
 // 安全添加站点（带距离检测）
-export function addStationSafely(pos?: Vec2, shape?: Station['shape'], size?: Station['size']): Station | null {
+export function addStationSafely(pos?: Vec2, shape?: Station['shape'], size?: Station['size'], camera?: any): Station | null {
   let finalPos: Vec2
 
   if (pos) {
     // 如果提供了位置，检查是否有效
     if (!isPositionValidForStation(pos)) {
       console.warn(`⚠️ 指定位置与现有站点距离过近，尝试生成新位置`)
-      const validPos = generateValidStationPosition()
+      const validPos = generateValidStationPosition(STATION_SPAWN_CONFIG.maxRetries, camera)
       if (!validPos) {
         console.error(`❌ 无法找到合适的站点位置`)
         return null
@@ -187,7 +238,7 @@ export function addStationSafely(pos?: Vec2, shape?: Station['shape'], size?: St
     }
   } else {
     // 如果没有提供位置，生成一个有效位置
-    const validPos = generateValidStationPosition()
+    const validPos = generateValidStationPosition(STATION_SPAWN_CONFIG.maxRetries, camera)
     if (!validPos) {
       console.error(`❌ 无法找到合适的站点位置`)
       return null
