@@ -48,8 +48,11 @@ describe('ui-controls', () => {
 
     setupUIControls()
 
+    // Wait a tick to allow dynamic import('./ui-panels') in setup to resolve
+    await Promise.resolve()
+    await new Promise((r) => setTimeout(r, 0))
+
     // basic assertion: labels should be initialized on buttons
     expect((document.getElementById('toggle-auto') as HTMLButtonElement).textContent).toMatch(/自动生成/)
   })
 })
-
