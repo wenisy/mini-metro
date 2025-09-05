@@ -58,7 +58,7 @@ function update(dt: number) {
 }
 
 // 主函数
-function main() {
+export function main() {
   const canvas = document.getElementById('game') as HTMLCanvasElement
   const hud = document.getElementById('hud') as HTMLDivElement
   const { ctx } = setupCanvas(canvas)
@@ -109,4 +109,19 @@ function main() {
   requestAnimationFrame(frame)
 }
 
-main()
+// Avoid auto-start in test environment
+// Vitest defines import.meta.vitest when running tests
+// Only auto-run when not under tests
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+try {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  const isVitest = !!(import.meta as any).vitest
+  const hasCanvas = typeof document !== 'undefined' && document.getElementById('game') instanceof HTMLCanvasElement
+  if (!isVitest && hasCanvas) {
+    main()
+  }
+} catch {
+  // in case of environments without import.meta or document
+}
