@@ -43,7 +43,7 @@ function updatePassengerStats(): void {
     // 计算已运送的总乘客数（从交易记录中获取）
     const totalTransported = transactions
       .filter(t => t.type === 'income' && t.description.includes('运输'))
-      .reduce((sum, t) => sum + (t.amount / 25), 0) // 假设平均票价25来估算乘客数
+      .reduce((sum, t) => sum + (t.amount / 2.5), 0) // 假设平均票价2.5来估算乘客数
     totalPassengersElement.textContent = Math.floor(totalTransported).toString()
   }
 

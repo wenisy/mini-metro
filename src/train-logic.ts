@@ -61,8 +61,8 @@ export function updateTrains(dt: number): void {
       // 计算收入（基于实际下车的乘客）
       let totalIncome = 0
       if (alightedPassengers > 0) {
-        // 使用平均票价计算收入
-        const averageTicketPrice = 25
+        // 使用平均票价计算收入（根据新的票价系统调整）
+        const averageTicketPrice = 2.5
         totalIncome = alightedPassengers * averageTicketPrice
 
         addMoney(totalIncome, `运输${alightedPassengers}名乘客到达目的地`, s.pos)

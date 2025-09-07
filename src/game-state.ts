@@ -38,9 +38,9 @@ export const STATION_SPAWN_CONFIG = {
 // 经济系统配置
 export const priceConfig: PriceConfig = {
   // 收入相关
-  baseTicketPrice: 10,
-  distanceMultiplier: 5,
-  transferBonus: 3,
+  baseTicketPrice: 1,
+  distanceMultiplier: 0.5,
+  transferBonus: 0.3,
   shapeMultipliers: {
     circle: 1.0,
     triangle: 1.2,
@@ -657,7 +657,11 @@ export function calculateTicketPrice(fromStationId: number, toStationId: number,
     price += priceConfig.transferBonus
   }
 
-  return Math.round(price)
+  // 整体乘以0.1来按比例降低成本
+  price *= 0.1
+
+  // 确保最低票价为1元
+  return Math.max(1, Math.round(price))
 }
 
 function calculateDistance(fromStationId: number, toStationId: number): number {
