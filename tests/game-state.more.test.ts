@@ -105,7 +105,7 @@ describe('game-state more functions', () => {
     const upgraded = upgradeTrainCapacity(line.id)
     expect(upgraded).toBe(true)
     const after = state.trains.filter(t => t.lineId === line.id).map(t => t.capacity)
-    expect(after.every((c, i) => c === before[i] + 1)).toBe(true)
+    expect(after.every((c, i) => c === before[i] + 20)).toBe(true)
   })
 
   it('economy addMoney/spendMoney and ticket price', () => {

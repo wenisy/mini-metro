@@ -53,12 +53,12 @@ export const priceConfig: PriceConfig = {
   newLineBaseCost: 200,
   lineExtensionCost: 100,  // 调整为基础成本，将通过倍数计算实际成本
   newTrainCost: 100,
-  trainCapacityUpgradeCost: 20,
+  trainCapacityUpgradeCost: 200,
   trainMaintenanceCost: 1, // 每分钟每列车
 
   // 成本倍数配置
   newLineCostMultiplier: 1.0,      // 新建线路：1.0倍基础成本
-  extensionCostMultiplier: 0.5,    // 延长线路：0.5倍基础成本
+  extensionCostMultiplier: 1.0,    // 延长线路：1.0倍基础成本
   modificationCostMultiplier: 1.0  // 修改连接：1.0倍基础成本
 }
 
@@ -517,7 +517,7 @@ export function upgradeTrainCapacity(lineId: number, pos?: Vec2): boolean {
 
   // 升级所有该线路的列车
   trainsOnLine.forEach(train => {
-    train.capacity += 1
+    train.capacity += 20
   })
 
   return true
