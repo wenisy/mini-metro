@@ -2,6 +2,9 @@ import { state, economy, transactions, total } from './game-state.js'
 
 // 更新财务面板和乘客统计
 export function updateFinancialPanel(): void {
+  // 检查是否在浏览器环境中
+  if (typeof document === 'undefined') return
+
   const balanceElement = document.getElementById('money-balance')
   const incomeElement = document.getElementById('total-income')
   const expenseElement = document.getElementById('total-expense')
@@ -30,6 +33,9 @@ export function updateFinancialPanel(): void {
 
 // 更新乘客统计
 function updatePassengerStats(): void {
+  // 检查是否在浏览器环境中
+  if (typeof document === 'undefined') return
+
   const totalPassengersElement = document.getElementById('total-passengers')
   const waitingPassengersElement = document.getElementById('waiting-passengers')
 
@@ -50,6 +56,9 @@ function updatePassengerStats(): void {
 
 // 更新游戏统计
 export function updateGameStats(): void {
+  // 检查是否在浏览器环境中
+  if (typeof document === 'undefined') return
+
   const gameTimeElement = document.getElementById('game-time')
   const stationCountElement = document.getElementById('station-count')
   const trainCountElement = document.getElementById('train-count')
@@ -68,6 +77,9 @@ export function updateGameStats(): void {
 }
 
 function updateButtonStates(): void {
+  // 检查是否在浏览器环境中
+  if (typeof document === 'undefined') return
+
   const autoBtn = document.getElementById('toggle-auto') as HTMLButtonElement
   const spawnBtn = document.getElementById('spawn-one') as HTMLButtonElement
   const deleteBtn = document.getElementById('toggle-delete-mode') as HTMLButtonElement
