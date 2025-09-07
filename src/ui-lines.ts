@@ -179,11 +179,11 @@ export function renderLinesPanel(): void {
       const trainId = Number((btn as HTMLButtonElement).dataset.trainUpgrade)
       const train = state.trains.find(t => t.id === trainId)
       if (train) {
-        // 为单个列车升级容量
+        // 使用统一的升级函数
         const cost = priceConfig.trainCapacityUpgradeCost
         if (canAfford(cost)) {
           spendMoney(cost, `升级列车容量`)
-          train.capacity += 1
+          train.capacity += 20  // 每次升级增加20个容量
           console.log(`列车 ${trainId} 容量升级为 ${train.capacity}`)
           renderLinesPanel()
           // 导入updateFinancialPanel以避免循环依赖
