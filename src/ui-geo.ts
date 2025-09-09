@@ -6,6 +6,7 @@ import { globalCamera } from './rendering.js'
 const CITY_PRESETS: Record<string, { name: string; bbox: [number, number, number, number] }> = {
   beijing: { name: '北京', bbox: [39.5, 115.5, 40.6, 117.7] },
   shanghai: { name: '上海', bbox: [30.9, 120.8, 31.6, 122.0] },
+  xian: { name: '西安', bbox: [34.0, 108.7, 34.5, 109.2] },
   guangzhou: { name: '广州', bbox: [22.9, 113.0, 23.6, 113.8] },
   shenzhen: { name: '深圳', bbox: [22.4, 113.8, 22.8, 114.6] },
   tokyo: { name: '东京', bbox: [35.5, 139.3, 35.9, 140.0] },

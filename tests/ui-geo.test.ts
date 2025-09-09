@@ -15,6 +15,7 @@ function setupDom() {
         <select id="geo-city-select">
           <option value="">请选择城市</option>
           <option value="beijing">北京</option>
+          <option value="xian">西安</option>
           <option value="virtual">虚拟地图 (随机)</option>
         </select>
         <input type="text" id="geo-custom-city" placeholder="输入城市名" />
