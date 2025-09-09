@@ -1,7 +1,7 @@
 import './style.css'
 
 // 导入模块化的代码
-import { state, spawnInitialWorld } from './game-state.js'
+import { state } from './game-state.js'
 import { Camera, render, updateMoneyEffects, setGlobalCamera } from './rendering.js'
 import { setupInput, interaction } from './input-handling.js'
 import { updateAnimations } from './smart-attachment.js'
@@ -11,6 +11,7 @@ import { renderLinesPanel } from './ui-lines.js'
 import { showLinkChooser, hideLinkChooser } from './ui-connection.js'
 import { updateFinancialPanel, updateGameStats } from './ui-panels.js'
 import { updateTransferStats } from './ui-transfer-stats.js'
+import { setupGeoControls } from './ui-geo.js'
 
 // 基础游戏引导：DPR感知画布，固定时间步长循环，指针输入
 
@@ -70,8 +71,8 @@ export function main() {
   // 设置输入处理
   setupInput(canvas, camera, showLinkChooser, hideLinkChooser)
 
-  // 初始化世界
-  spawnInitialWorld()
+  // 设置GEO下拉与加载逻辑（用户选择后再初始化世界）
+  setupGeoControls()
 
   // 设置UI控件
   setupUIControls()

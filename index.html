@@ -54,6 +54,20 @@
     <canvas id="game"></canvas>
     <div class="overlay" id="hud">Loading…</div>
 
+    <!-- 顶部 GEO 城市选择栏 -->
+    <div class="overlay" style="left:50%; top:0; transform:translateX(-50%); text-align:center; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); border-radius:6px;">
+      <label for="geo-city-select" style="font-size:12px; margin-right:6px; color:#ddd;">🌍 城市:</label>
+      <select id="geo-city-select" style="font-size:12px; padding:4px 6px; background:#222; color:#fff; border:1px solid #444; border-radius:4px;">
+        <option value="">请选择城市</option>
+        <option value="beijing">北京</option>
+        <option value="shanghai">上海</option>
+        <option value="newyork">New York</option>
+        <option value="virtual">虚拟地图 (随机)</option>
+      </select>
+      <button id="geo-load" style="font-size:12px; padding:4px 8px; margin-left:6px; background:#4CAF50; color:#fff; border:none; border-radius:4px; cursor:pointer;">加载</button>
+      <span id="geo-tip" style="font-size:11px; margin-left:8px; color:#aaa;"></span>
+    </div>
+
     <!-- 左侧线路管理面板 -->
     <div class="overlay"
       style="left: 0; top: 0; text-align: left; max-width: 280px; max-height: 80vh; overflow-y: auto;">
