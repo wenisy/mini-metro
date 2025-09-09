@@ -17,6 +17,9 @@ function setupDom() {
           <option value="beijing">北京</option>
           <option value="virtual">虚拟地图 (随机)</option>
         </select>
+        <label for="geo-density">密度</label>
+        <input type="range" id="geo-density" min="10" max="200" step="10" value="80" />
+        <span id="geo-density-value">80px</span>
         <button id="geo-load">加载</button>
         <span id="geo-tip"></span>
       </div>
@@ -87,6 +90,41 @@ describe('ui-geo', () => {
     expect(state.stations.length).toBeGreaterThanOrEqual(2)
     // May or may not have a line depending on station count; ensure no crash
     expect(Array.isArray(state.lines)).toBe(true)
+  })
+
+  it('respects density slider: higher min distance yields fewer stations', async () => {
+    const mockElements = {
+      elements: [
+        { lat: 40.0, lon: 116.00 },
+        { lat: 40.0, lon: 116.03 },
+        { lat: 40.0, lon: 116.06 },
+        { lat: 40.5, lon: 115.7 },
+        { lat: 39.6, lon: 117.6 },
+      ],
+    }
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve(mockElements),
+    } as any)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const select = document.getElementById('geo-city-select') as HTMLSelectElement
+    const density = document.getElementById('geo-density') as HTMLInputElement
+    const btn = document.getElementById('geo-load') as HTMLButtonElement
+
+    select.value = 'beijing'
+
+    density.value = '10'
+    btn.click(); await flush(); await flush();
+    const low = state.stations.length
+
+    density.value = '200'
+    btn.click(); await flush(); await flush();
+    const high = state.stations.length
+
+    expect(fetchMock).toHaveBeenCalled()
+    expect(low).toBeGreaterThanOrEqual(3)
+    expect(high).toBeGreaterThanOrEqual(1)
+    expect(high).toBeLessThanOrEqual(low)
   })
 })
 

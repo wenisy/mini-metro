@@ -98,8 +98,18 @@ export function setupGeoControls(): void {
   const select = document.getElementById('geo-city-select') as HTMLSelectElement | null
   const btn = document.getElementById('geo-load') as HTMLButtonElement | null
   const tip = document.getElementById('geo-tip') as HTMLSpanElement | null
+  const densityInput = document.getElementById('geo-density') as HTMLInputElement | null
+  const densityValue = document.getElementById('geo-density-value') as HTMLSpanElement | null
 
   if (!select || !btn) return
+
+  // 初始化密度显示
+  if (densityInput && densityValue) {
+    densityValue.textContent = `${densityInput.value}px`
+    densityInput.addEventListener('input', () => {
+      if (densityValue) densityValue.textContent = `${densityInput.value}px`
+    })
+  }
 
   // 填充选项（若index.html未静态写死）
   if (select.options.length <= 1) {
@@ -133,7 +143,10 @@ export function setupGeoControls(): void {
 
       // 投影到游戏坐标并稀疏化
       const projected = nodes.map(n => projectToWorld(n.lon, n.lat, preset.bbox))
-      const sparse = sparsify(projected, 80) // 最小像素间距，符合“在一个范围内只选一个”
+      const minDist = (typeof densityInput !== 'undefined' && densityInput)
+        ? Math.max(10, Math.min(300, Number(densityInput.value) || 80))
+        : 80
+      const sparse = sparsify(projected, minDist) // 最小像素间距，符合“在一个范围内只选一个”
 
       // 应用到世界
       clearWorld()
