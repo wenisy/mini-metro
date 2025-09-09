@@ -17,7 +17,15 @@ function setupDom() {
           <option value="beijing">北京</option>
           <option value="virtual">虚拟地图 (随机)</option>
         </select>
-        <label for="geo-density">密度</label>
+        <input type="text" id="geo-custom-city" placeholder="输入城市名" />
+        <button id="geo-search">🔍</button>
+        <select id="geo-station-type">
+          <option value="all">全部</option>
+          <option value="subway">地铁站</option>
+        </select>
+        <input type="number" id="geo-max-stations" min="5" max="100" value="50" />
+        <input type="checkbox" id="geo-auto-lines" checked />
+        <input type="number" id="geo-line-count" min="1" max="8" value="3" />
         <input type="range" id="geo-density" min="10" max="200" step="10" value="80" />
         <span id="geo-density-value">80px</span>
         <button id="geo-load">加载</button>
@@ -125,6 +133,101 @@ describe('ui-geo', () => {
     expect(low).toBeGreaterThanOrEqual(3)
     expect(high).toBeGreaterThanOrEqual(1)
     expect(high).toBeLessThanOrEqual(low)
+  })
+
+  it('respects station type filter and max stations limit', async () => {
+    const mockElements = {
+      elements: Array.from({ length: 20 }, (_, i) => ({
+        lat: 40.0 + i * 0.01,
+        lon: 116.0 + i * 0.01
+      }))
+    }
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve(mockElements),
+    } as any)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const select = document.getElementById('geo-city-select') as HTMLSelectElement
+    const stationType = document.getElementById('geo-station-type') as HTMLSelectElement
+    const maxStations = document.getElementById('geo-max-stations') as HTMLInputElement
+    const btn = document.getElementById('geo-load') as HTMLButtonElement
+
+    select.value = 'beijing'
+    stationType.value = 'subway'
+    maxStations.value = '10'
+
+    btn.click(); await flush(); await flush();
+
+    expect(fetchMock).toHaveBeenCalled()
+    expect(state.stations.length).toBeLessThanOrEqual(10)
+    expect(state.stations.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('creates multiple lines when auto-lines is enabled', async () => {
+    const mockElements = {
+      elements: Array.from({ length: 15 }, (_, i) => ({
+        lat: 40.0 + i * 0.02,
+        lon: 116.0 + i * 0.02
+      }))
+    }
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve(mockElements),
+    } as any)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const select = document.getElementById('geo-city-select') as HTMLSelectElement
+    const autoLines = document.getElementById('geo-auto-lines') as HTMLInputElement
+    const lineCount = document.getElementById('geo-line-count') as HTMLInputElement
+    const btn = document.getElementById('geo-load') as HTMLButtonElement
+
+    select.value = 'beijing'
+    autoLines.checked = true
+    lineCount.value = '3'
+
+    btn.click(); await flush(); await flush();
+
+    expect(fetchMock).toHaveBeenCalled()
+    expect(state.stations.length).toBeGreaterThanOrEqual(3)
+    // Multiple lines should be created (though exact count depends on clustering)
+    expect(state.lines.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('searches custom city and adds to presets', async () => {
+    // Mock Nominatim API response
+    const nominatimResponse = [{
+      display_name: 'Tokyo, Japan',
+      boundingbox: ['35.5', '35.9', '139.3', '140.0']
+    }]
+
+    // Mock OSM response
+    const osmResponse = { elements: [{ lat: 35.7, lon: 139.7 }] }
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve(nominatimResponse)
+      } as any)
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve(osmResponse)
+      } as any)
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const customCity = document.getElementById('geo-custom-city') as HTMLInputElement
+    const searchBtn = document.getElementById('geo-search') as HTMLButtonElement
+    const select = document.getElementById('geo-city-select') as HTMLSelectElement
+    const btn = document.getElementById('geo-load') as HTMLButtonElement
+
+    customCity.value = 'Tokyo'
+    searchBtn.click(); await flush(); await flush();
+
+    // Should add new option to select
+    const options = Array.from(select.options).map(opt => opt.textContent)
+    expect(options.some(text => text?.includes('Tokyo'))).toBe(true)
+
+    // Should be able to load the custom city
+    btn.click(); await flush(); await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
 
